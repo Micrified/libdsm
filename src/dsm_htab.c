@@ -154,7 +154,7 @@ void *dsm_getHashTableEntry (dsm_htab *htab, int hash, int key) {
 }
 
 // Inserts a new table entry. Key must be string table index. Returns pointer.
-void *dsm_newHashTableEntry (dsm_htab *htab, int hash, int key, void *data) {
+void *dsm_setHashTableEntry (dsm_htab *htab, int hash, int key, void *data) {
     dsm_htab_entry *entry;
 
     // Verify argument.

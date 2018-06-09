@@ -44,7 +44,7 @@ void dsm_showHashTable (dsm_htab *htab);
 void *dsm_getHashTableEntry (dsm_htab *htab, int hash, int key);
 
 // Inserts a new table entry. Key must be string table index. Returns pointer.
-void *dsm_newHashTableEntry (dsm_htab *htab, int hash, int key, void *data);
+void *dsm_setHashTableEntry (dsm_htab *htab, int hash, int key, void *data);
 
 // Removes a table entry. Uses supplied function to free data. Exits on error.
 void dsm_removeHashTableEntry (dsm_htab *htab, int hash, int key);
