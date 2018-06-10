@@ -16,12 +16,14 @@ TEST_STAB_FILES=${TDIR}dsm_test_stab.c ${SDIR}dsm_stab.c ${SDIR}dsm_util.c
 
 TEST_SEM_FILES=${SDIR}dsm_sem_htab.c ${SDIR}dsm_htab.c ${SDIR}dsm_util.c ${SDIR}dsm_stab.c
 
+TEST_PTAB_FILES=${TDIR}dsm_test_ptab.c ${SDIR}dsm_ptab.c ${SDIR}dsm_util.c
+
 # PRGM RULES
 
 
 # TEST RULES
 
-tests: test_sem
+tests: test_ptab
 
 test_msg: ${TEST_MSG_FILES}
 	${CC} ${CFLAGS} -I ${IDIR} -g -o ${BIN}dsm_test_msg ${TEST_MSG_FILES} ${LIBS}
@@ -34,6 +36,9 @@ test_stab: ${TEST_STAB_FILES}
 
 test_sem: ${TEST_SEM_FILES}
 	${CC} ${CFLAGS} -I ${IDIR} -g -o ${BIN}dsm_test_sem ${TEST_SEM_FILES} ${LIBS}
+
+test_ptab: ${TEST_PTAB_FILES}
+	${CC} ${CFLAGS} -I ${IDIR} -g -o ${BIN}dsm_test_ptab ${TEST_PTAB_FILES} ${LIBS}
 
 
 

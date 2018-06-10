@@ -1,6 +1,42 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
+
 #include "dsm_ptab.h"
 #include "dsm_util.h"
 
+
+/*
+ *******************************************************************************
+ *                        Private Function Definitions                         *
+ *******************************************************************************
+*/
+
+
+// Reallocates the array of linked-list pointers.
+static void resizeProcessTable (dsm_ptab *ptab, unsigned int size) {
+
+    // Verify input.
+    if (ptab == NULL || size < ptab->size) {
+        dsm_cpanic("resizeProcessTable", "Invalid argument!");
+    }
+
+    // Allocate a new zeroed linked-list table.
+    dsm_proc_node **tab = dsm_zalloc(size * sizeof(dsm_proc_node *));
+
+    // Copy over the old entries.
+    memcpy(tab, ptab->tab, ptab->size * sizeof(dsm_proc_node *));
+
+    // Free the old table.
+    free(ptab->tab);
+
+    // Update with the new table, and set the new size.
+    ptab->tab = tab;
+    ptab->size = size;
+}
+
+// Searches the linked-list for given pid. Returns NULL if not found.
 static dsm_proc *getProcessTableEntry (dsm_proc_node *node, int pid) {
     
     // Recursive guard.
@@ -17,6 +53,7 @@ static dsm_proc *getProcessTableEntry (dsm_proc_node *node, int pid) {
     return getProcessTableEntry(node->next, pid);
 }
 
+// Removes entry with specified pid from linked-list. Returns self.
 static dsm_proc_node *remProcessTableEntry (dsm_proc_node *node, int pid, 
     int *didExist) {
     dsm_proc_node *next;
@@ -39,6 +76,7 @@ static dsm_proc_node *remProcessTableEntry (dsm_proc_node *node, int pid,
     return node;
 }
 
+// Recursively frees all nodes in the linked list.
 static void freeProcessTableEntry (dsm_proc_node *node) {
 
     // Recursive guard.
@@ -50,6 +88,14 @@ static void freeProcessTableEntry (dsm_proc_node *node) {
     freeProcessTableEntry(node->next);
     free(node);
 }
+
+
+/*
+ *******************************************************************************
+ *                         Public Function Definitions                         *
+ *******************************************************************************
+*/
+
 
 // Allocates and initializes a new process table. Exits fatally on error.
 dsm_ptab *dsm_initProcessTable (unsigned int size) {
@@ -75,13 +121,17 @@ dsm_ptab *dsm_initProcessTable (unsigned int size) {
 dsm_proc *dsm_setProcessTableEntry (dsm_ptab *ptab, int fd, int pid) {
     dsm_proc_node *node;
 
-    // If the file-descriptor doesn't exist, resize the table to fit it.
-    while (fd >= ptab->size) {
-        ptab->size *= 2;
-        ptab->tab = realloc(ptab->tab, ptab->size);
+    // Verify input.
+    if (ptab == NULL || fd < 0) {
+        dsm_cpanic("dsm_setProcessTableEntry", "Invalid arguments!");
     }
 
-    // Verify process doesn't already exist: If you resize it didn't, but whatever.
+    // Resize the table if the file-descriptor does not have a slot.
+    if ((unsigned int)fd >= ptab->size) {
+        resizeProcessTable(ptab, MAX(ptab->size * 2, (unsigned int)fd));
+    }
+
+    // Verify process doesn't exist: If you resize then it didn't, but eh.
     if (getProcessTableEntry(ptab->tab[fd], pid) != NULL) {
         dsm_cpanic("dsm_setProcessTableEntry", "Entry already exists!");
     }
@@ -92,13 +142,13 @@ dsm_proc *dsm_setProcessTableEntry (dsm_ptab *ptab, int fd, int pid) {
     }
 
     // Configure node as new head of linked-list.
-    *node = (dsm_proc_node){
+    *node = (dsm_proc_node) {
         .next = ptab->tab[fd],
         .proc = (dsm_proc) {
             .gid = ptab->next_gid++,
             .pid = pid,
             .sem_id = -1,
-            .flags = 0
+            .flags = {0}
         }
     };
 
@@ -112,8 +162,13 @@ dsm_proc *dsm_setProcessTableEntry (dsm_ptab *ptab, int fd, int pid) {
 // Returns a process for the given file-descriptor and pid. May return NULL.
 dsm_proc *dsm_getProcessTableEntry (dsm_ptab *ptab, int fd, int pid) {
 
+    // Verify input.
+    if (ptab == NULL || fd < 0) {
+        dsm_cpanic("dsm_getProcessTableEntry", "Invalid arguments!");
+    }
+
     // Check if fd in range.
-    if (fd >= ptab->size || fd < 0) {
+    if ((unsigned int)fd >= ptab->size) {
         return NULL;
     }
 
@@ -124,9 +179,14 @@ dsm_proc *dsm_getProcessTableEntry (dsm_ptab *ptab, int fd, int pid) {
 void dsm_remProcessTableEntry (dsm_ptab *ptab, int fd, int pid) {
     int didExist = 0;
 
-    // Fault on requests out of range.
-    if (fd >= ptab->size || fd < 0) {
-        dsm_cpanic("dsm_remProcessTableEntry", "fd out of range!");
+    // Verify arguments.
+    if (ptab == NULL || fd < 0 || (unsigned int)fd >= ptab->size) {
+        dsm_cpanic("dsm_remProcessTableEntry", "Invalid arguments!");
+    }
+
+    // If the entry already exists, error out.
+    if (dsm_getProcessTableEntry(ptab, fd, pid) == NULL) {
+        dsm_cpanic("dsm_remProcessTableEntry", "No entry exists to remove!");
     }
 
     // Remove process. Update list head.
@@ -136,25 +196,50 @@ void dsm_remProcessTableEntry (dsm_ptab *ptab, int fd, int pid) {
     ptab->nproc -= didExist;
 }
 
-// Returns next process with matching sem_id. Returns NULL if none found.
-dsm_proc *dsm_getProcessTableEntryWithSemID (dsm_ptab *ptab, int sem_id) {
+// Returns fd of process with semaphore ID/ -1 if none. Copies to proc_p.
+int dsm_getProcessTableEntryWithSemID (dsm_ptab *ptab, int sem_id, 
+	dsm_proc *proc_p) {
 
     // For all connections, search all linked lists.
-    for (int i = 0; i < ptab->size; i++) {
+    for (unsigned int i = 0; i < ptab->size; i++) {
         for (dsm_proc_node *n = ptab->tab[i]; n != NULL; n = n->next) {
             if (n->proc.sem_id == sem_id) {
-                return &(n->proc);
+                *proc_p = n->proc;
+                return i;
             }
         }
     }
-    return NULL;
+    return -1;
+}
+
+// [DEBUG] Prints the process table.
+void dsm_showProcessTable (dsm_ptab *ptab) {
+    printf("nproc = %u\n", ptab->nproc);
+    dsm_proc_node *n;
+
+    // Show individual tables.
+    for (unsigned int i = 0; i < ptab->size; i++) {
+        printf("--------------------------------[fd = %d]------"\
+			"--------------------------------\n", i);
+        printf(" gid\tpid\tsem_id\ts\tb\tq\n");
+        for (n = ptab->tab[i]; n != NULL; n = n->next) {
+            char s = (n->proc.flags.is_stopped == 1 ? 'Y' : 'N');
+            char b = (n->proc.flags.is_blocked == 1 ? 'Y' : 'N');
+            char q = (n->proc.flags.is_queued == 1 ? 'Y' : 'N');
+            printf(" %d\t%d\t%d\t%c\t%c\t%c\n", n->proc.gid, 
+				n->proc.pid, n->proc.sem_id, s, b, q);
+        }
+        printf("\n");
+    }
 }
 
 // Frees the process table.
 void dsm_freeProcessTable (dsm_ptab *ptab) {
-    for (int i = 0; i < ptab->size; i++) {
+
+    for (unsigned int i = 0; i < ptab->size; i++) {
         freeProcessTableEntry(ptab->tab[i]);
     }
+
     free(ptab->tab);
     free(ptab);
 }

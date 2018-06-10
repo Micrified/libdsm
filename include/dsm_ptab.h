@@ -1,8 +1,24 @@
 #if !defined(DSM_PTAB_H)
 #define DSM_PTAB_H
 
+
+/*
+ *******************************************************************************
+ *                             Symbolic Constants                              *
+ *******************************************************************************
+*/
+
+
 // Default number of expected machines.
 #define DSM_PTAB_NFD
+
+
+/*
+ *******************************************************************************
+ *                              Type Definitions                               *
+ *******************************************************************************
+*/
+
 
 // Bit-field enumerating various process mode flags.
 typedef struct dsm_pstate {
@@ -10,6 +26,7 @@ typedef struct dsm_pstate {
     unsigned int is_blocked : 1;    // Process blocked (barrier or semaphore)
     unsigned int is_queued  : 1;    // Process queued for operation.
 } dsm_pstate;
+
 
 // Type describing a process.
 typedef struct dsm_proc {
@@ -19,11 +36,13 @@ typedef struct dsm_proc {
     dsm_pstate flags;               // Process mode flags.
 } dsm_proc;
 
+
 // Node for linked processes.
 typedef struct dsm_proc_node {
-    dsm_proc proc;
-    struct dsm_proc_node *next;
+    dsm_proc proc;					// Process.
+    struct dsm_proc_node *next;		// Link to next node.
 } dsm_proc_node;
+
 
 // Type describing a simple process table.
 typedef struct dsm_ptab {
@@ -32,6 +51,14 @@ typedef struct dsm_ptab {
     unsigned int nproc;             // The number of logged processes.
     dsm_proc_node **tab;            // Table of linked-lists.
 } dsm_ptab;
+
+
+/*
+ *******************************************************************************
+ *                            Function Declarations                            *
+ *******************************************************************************
+*/
+
 
 // Allocates and initializes a new process table. Exits fatally on error.
 dsm_ptab *dsm_initProcessTable (unsigned int size);
@@ -45,8 +72,12 @@ dsm_proc *dsm_getProcessTableEntry (dsm_ptab *ptab, int fd, int pid);
 // Removes a process for the given file-descriptor and pid. 
 void dsm_remProcessTableEntry (dsm_ptab *ptab, int fd, int pid);
 
-// Returns next process with matching sem_id. Returns NULL if none found.
-dsm_proc *dsm_getProcessTableEntryWithSemID (dsm_ptab *ptab, int sem_id);
+// Returns fd of process with semaphore ID/ -1 if none. Copies to proc_p.
+int dsm_getProcessTableEntryWithSemID (dsm_ptab *ptab, int sem_id, 
+	dsm_proc *proc_p);
+
+// [DEBUG] Prints the process table.
+void dsm_showProcessTable (dsm_ptab *ptab);
 
 // Frees the process table.
 void dsm_freeProcessTable (dsm_ptab *ptab);
