@@ -1,10 +1,16 @@
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include "dsm_stab.h"
 #include "dsm_util.h"
+
+
+/*
+ *******************************************************************************
+ *                            Function Definitions                             *
+ *******************************************************************************
+*/
 
 
 // Allocates and returns a string-table of given size.

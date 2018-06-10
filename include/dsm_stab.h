@@ -3,12 +3,28 @@
 
 #include <stdlib.h>
 
+
+/*
+ *******************************************************************************
+ *                              Type Definitions                               *
+ *******************************************************************************
+*/
+
+
 // Type describing a string-table.
 typedef struct dsm_stab {
     size_t size;            // String-table size.
     off_t sp;                 // Pointer to free byte space.
     char *tab;              // String-table.
 } dsm_stab;
+
+
+/*
+ *******************************************************************************
+ *                            Function Declarations                            *
+ *******************************************************************************
+*/
+
 
 // Allocates and returns a string-table of given size.
 dsm_stab *dsm_initStringTable (size_t size);
@@ -24,5 +40,6 @@ void dsm_printStringTable (dsm_stab *stab);
 
 // Frees given string-table. 
 void dsm_freeStringTable (dsm_stab *stab);
+
 
 #endif
