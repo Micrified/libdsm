@@ -46,7 +46,7 @@ int dsm_setStringTableEntry (dsm_stab *stab, const char *s);
 const char *dsm_getStringTableEntry (dsm_stab *stab, off_t idx);
 
 // [DEBUG] Prints the string-table.
-void dsm_printStringTable (dsm_stab *stab);
+void dsm_showStringTable (dsm_stab *stab);
 
 // Frees given string-table. 
 void dsm_freeStringTable (dsm_stab *stab);

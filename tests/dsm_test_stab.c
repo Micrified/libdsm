@@ -18,7 +18,7 @@ int main (void) {
     }
 
     // Print the table.
-    //dsm_printStringTable(stab);
+    //dsm_showStringTable(stab);
 
     // Verify strings match.
     for (int i = 0; i < 5; i++) {

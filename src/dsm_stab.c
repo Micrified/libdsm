@@ -78,7 +78,7 @@ const char *dsm_getStringTableEntry (dsm_stab *stab, off_t idx) {
 }
 
 // [DEBUG] Prints the string-table.
-void dsm_printStringTable (dsm_stab *stab) {
+void dsm_showStringTable (dsm_stab *stab) {
 
     // Verify arguments.
     if (stab == NULL || stab->tab == NULL) {

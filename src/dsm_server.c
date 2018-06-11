@@ -516,6 +516,8 @@ int main (int argc, const char *argv[]) {
         printf("[%d] State Update\n", getpid());
         dsm_showPollable(g_pollSet);
         dsm_showOpQueue(g_opqueue);
+        dsm_showStringTable(g_str_tab);
+        dsm_showProcessTable(g_proc_tab);
         printf("\n\n");
     }
 
