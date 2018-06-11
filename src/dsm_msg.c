@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <inttypes.h>
 #include <arpa/inet.h>
 
 #include "dsm_msg.h"
@@ -298,12 +299,12 @@ static void marshall_payload_task (int dir, dsm_msg *mp, unsigned char *b) {
 
 // Marshalls: [DSM_MSG_GOT_DATA].
 static void marshall_payload_data (int dir, dsm_msg *mp, unsigned char *b) {
-	const char *fmt = "lqqb";
+	const char *fmt = "lllb";
 	if (dir == 0) {
 		pack(b, fmt, mp->type, mp->data.offset, mp->data.size, mp->data.bytes);
 	} else {
 		unpack(b, fmt, &(mp->type), &(mp->data.offset), &(mp->data.size), 
-			&(mp->data.bytes));
+			mp->data.bytes);
 	}
 }
 
@@ -336,7 +337,7 @@ void init_fmaps (void) {
 
 	// Marshalling for: No payload.
 	fmap[DSM_MSG_STP_ALL] = fmap[DSM_MSG_CNT_ALL] = fmap[DSM_MSG_REL_BAR] = 
-		fmap[DSM_MSG_WRT_NOW] = fmap[DSM_MSG_REQ_WRT] = fmap[DSM_MSG_EXIT] =
+		fmap[DSM_MSG_WRT_NOW] = fmap[DSM_MSG_EXIT] =
 		marshall_payload_none;
 
 	// Marshalling for: dsm_payload_sid.
@@ -345,10 +346,13 @@ void init_fmaps (void) {
 
 	// Marshalling for: dsm_payload_proc.
 	fmap[DSM_MSG_ADD_PID] = fmap[DSM_MSG_SET_GID] = fmap[DSM_MSG_HIT_BAR] =
-		marshall_payload_proc;
+		fmap[DSM_MSG_REQ_WRT] = marshall_payload_proc;
 
 	// Marshalling for: dsm_payload_task.
 	fmap[DSM_MSG_GOT_DATA] = fmap[DSM_MSG_ALL_STP] = marshall_payload_task;
+
+	// Marshalling for: dsm_payload_data.
+	fmap[DSM_MSG_WRT_DATA] = marshall_payload_data;
 
 	// Marshalling for: dsm_payload_sem.
 	fmap[DSM_MSG_POST_SEM] = fmap[DSM_MSG_WAIT_SEM] = marshall_payload_sem;
@@ -423,7 +427,7 @@ void dsm_showMsg (dsm_msg *mp) {
 			printf("Type: DSM_MSG_SET_SID\n");
 			printf("sid = \"%.*s\"\n", DSM_MSG_STR_SIZE, 
 				mp->sid.sid);
-			printf("port = %d\n", mp->sid.port);
+			printf("port = %" PRId32 "\n", mp->sid.port);
 			break;
 
 		case DSM_MSG_STP_ALL:
@@ -444,48 +448,48 @@ void dsm_showMsg (dsm_msg *mp) {
 
 		case DSM_MSG_SET_GID:
 			printf("Type: DSM_MSG_SET_GID\n");
-			printf("pid = %d\n", mp->proc.pid);
-			printf("gid = %d\n", mp->proc.gid);
+			printf("pid = %" PRId32 "\n", mp->proc.pid);
+			printf("gid = %" PRId32 "\n", mp->proc.gid);
 			break;
 
 		case DSM_MSG_GET_SID:
 			printf("Type: DSM_MSG_GET_SID\n");
 			printf("sid = \"%.*s\"\n", DSM_MSG_STR_SIZE,
 				mp->sid.sid);
-			printf("nproc = %d\n", mp->sid.nproc);
+			printf("nproc = %" PRId32 "\n", mp->sid.nproc);
 			break;
 
 		case DSM_MSG_ALL_STP:
 			printf("Type: DSM_MSG_ALL_STP\n");
-			printf("nproc = %d\n", mp->task.nproc);
+			printf("nproc = %" PRId32 "\n", mp->task.nproc);
 			break;
 
 		case DSM_MSG_GOT_DATA:
 			printf("Type: DSM_MSG_GOT_DATA\n");
-			printf("nproc = %d\n", mp->task.nproc);
+			printf("nproc = %" PRId32 "\n", mp->task.nproc);
 			break;
 
 		case DSM_MSG_ADD_PID:
 			printf("Type: DSM_MSG_ADD_PID\n");
-			printf("pid = %d\n", mp->proc.pid);
+			printf("pid = %" PRId32 "\n", mp->proc.pid);
 			break;
 
 		case DSM_MSG_REQ_WRT:
 			printf("Type: DSM_MSG_REQ_WRT\n");
-			printf("pid = %d\n", mp->proc.pid);
+			printf("pid = %" PRId32 "\n", mp->proc.pid);
 			break;
 
 		case DSM_MSG_HIT_BAR:
 			printf("Type: DSM_MSG_HIT_BAR\n");
-			printf("pid = %d\n", mp->proc.pid);
+			printf("pid = %" PRId32 "\n", mp->proc.pid);
 			break;
 
 		case DSM_MSG_WRT_DATA: {
 			printf("Type: DSM_MSG_WRT_DATA\n");
-			printf("offset = %ld\n", mp->data.offset);
-			printf("size = %zu\n", mp->data.size);
+			printf("offset = %" PRId32 "\n", mp->data.offset);
+			printf("size = %" PRId32 "\n", mp->data.size);
 			printf("data = ");
-			for (unsigned int i = 0; i < mp->data.size; i++) {
+			for (int i = 0; i < MIN(mp->data.size, 8); i++) {
 				printf("%02x ", mp->data.bytes[i]);
 			}
 			printf("\n");
@@ -494,12 +498,14 @@ void dsm_showMsg (dsm_msg *mp) {
 
 		case DSM_MSG_POST_SEM:
 			printf("Type: DSM_MSG_POST_SEM\n");
+			printf("pid = %" PRId32 "\n", mp->sem.pid);
 			printf("sem_name = \"%.*s\"\n", DSM_MSG_STR_SIZE,
 				mp->sem.sem_name);
 			break;
 
 		case DSM_MSG_WAIT_SEM:
 			printf("Type: DSM_MSG_WAIT_SEM\n");
+			printf("pid = %" PRId32 "\n", mp->sem.pid);
 			printf("sem_name = \"%.*s\"\n", DSM_MSG_STR_SIZE, 
 				mp->sem.sem_name);
 			break;

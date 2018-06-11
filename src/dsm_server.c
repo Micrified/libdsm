@@ -98,13 +98,22 @@ static void send_msg (int fd, dsm_msg *mp) {
     dsm_sendall(fd, buf, DSM_MSG_SIZE);
 }
 
+// Sends a message to all file-descriptors. Performs packing task.
+static void send_all_msg (dsm_msg *mp) {
+    unsigned char buf[DSM_MSG_SIZE];
+
+    // Pack message.
+    dsm_pack_msg(mp, buf);
+
+    // Send to all. Skip listener socket at index zero.
+    for (unsigned int i = 1; i < g_pollSet->fp; i++) {
+        dsm_sendall(g_pollSet->fds[i].fd, buf, DSM_MSG_SIZE);
+    }
+}
+
 // Sends basic message without payload. If fd == -1. Message is sent to all.
 static void send_easyMsg (int fd, dsm_msg_t type) {
-    dsm_msg msg;
-
-    // Configure message.
-    memset(&msg, 0, DSM_MSG_SIZE);
-    msg.type = type;
+    dsm_msg msg = {.type = type};
 
     // If fd >= 0: Send to fd.
     if (fd >= 0) {
@@ -112,10 +121,8 @@ static void send_easyMsg (int fd, dsm_msg_t type) {
         return;
     }
 
-    // Send to all. Skip listener socket at index zero.
-    for (unsigned int i = 1; i < g_pollSet->fp; i++) {
-        send_msg(g_pollSet->fds[i].fd, &msg);
-    }
+    // Send to all.
+    send_all_msg(&msg);
 }
 
 
@@ -187,7 +194,7 @@ static void handler_add_pid (int fd, dsm_msg *mp) {
     dsm_proc *proc_p;
 
     // Verify state.
-    ASSERT_STATE(g_started == 1);
+    ASSERT_STATE(g_started == 0);
 
     // Register process in table.
     proc_p = dsm_setProcessTableEntry(g_proc_tab, fd, pid);
@@ -293,9 +300,7 @@ static void handler_wrt_data (int fd, dsm_msg *mp) {
     printf("[%d] Sending data to all!\n", getpid());
 
     // Otherwise: Forward data to all arbiters.
-    for (unsigned int i = 0; i < g_pollSet->fp; i++) {
-        send_msg(g_pollSet->fds[i].fd, mp);
-    }
+    send_all_msg(mp);
 
     // Set new state step.
     g_opqueue->step = STEP_WAITING_SYNC_ACK;
@@ -305,8 +310,8 @@ static void handler_wrt_data (int fd, dsm_msg *mp) {
 static void handler_post_sem (int fd, dsm_msg *mp) {
     char *sem_name = mp->sem.sem_name;
     dsm_sem_t *sem;
-    dsm_proc proc;
-    int proc_fd;
+    dsm_proc *proc;
+    int pfd;
     UNUSED(fd);
 
     // Verify State.
@@ -318,17 +323,18 @@ static void handler_post_sem (int fd, dsm_msg *mp) {
         printf("[%d] DSM_MSG_POST_SEM: Created \"%s\"\n", getpid(), sem_name);
     }
 
-    // Get any process blocked on this semaphore.
-    proc_fd = dsm_getProcessTableEntryWithSemID(g_proc_tab, sem->sem_id, &proc);
+    // Get any process blocked on semaphore.
+    proc = dsm_getProcessTableEntryWithSemID(g_proc_tab, sem->sem_id, &pfd);
 
-    // If no process is found, increment value. Else unblock process.
-    if (proc_fd != -1) {
+    // If no process found: Increment value. Else: Unblock and reset process.
+    if (proc == NULL) {
         printf("[%d] DSM_MSG_POST_SEM: Incremented %s\n", getpid(), sem_name);
         sem->value += 1;
     } else {
-        printf("[%d] DSM_MSG_POST_SEM: Unblocked process %d waiting on %s!\n", getpid(), proc.pid, sem_name);
-        mp->sem.pid = proc.pid;
-        send_msg(proc_fd, mp);
+        printf("[%d] DSM_MSG_POST_SEM: Unblocked process %d waiting on %s!\n", getpid(), proc->pid, sem_name);
+        proc->sem_id = -1;
+        mp->sem.pid = proc->pid;
+        send_msg(pfd, mp);
     }
 }
 
@@ -409,7 +415,7 @@ static void handle_new_connection (int fd) {
 // Handles a message from a pollable socket.
 static void handle_new_message (int fd) {
     unsigned char buf[DSM_MSG_SIZE];
-    dsm_msg msg;
+    dsm_msg msg = {0};
     void (*handler)(int, dsm_msg *);
 
     // Read in data. Abort if sender disconnected (recvall returns nonzero).

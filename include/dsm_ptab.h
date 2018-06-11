@@ -10,7 +10,7 @@
 
 
 // Default number of expected machines.
-#define DSM_PTAB_NFD                32
+#define DSM_PTAB_NFD                3
 
 
 /*
@@ -78,9 +78,9 @@ void dsm_remProcessTableEntry (dsm_ptab *ptab, int fd, int pid);
 // Frees all processes for the given file-descriptor. Sets slot to NULL.
 void dsm_remProcessTableEntries (dsm_ptab *ptab, int fd);
 
-// Returns fd of process with semaphore ID/ -1 if none. Copies to proc_p.
-int dsm_getProcessTableEntryWithSemID (dsm_ptab *ptab, int sem_id, 
-	dsm_proc *proc_p);
+// Returns pointer to process with semaphore ID. Returns NULL if none exists.
+dsm_proc *dsm_getProcessTableEntryWithSemID (dsm_ptab *ptab, int sem_id, 
+    int *fd_p);
 
 // [DEBUG] Prints the process table.
 void dsm_showProcessTable (dsm_ptab *ptab);

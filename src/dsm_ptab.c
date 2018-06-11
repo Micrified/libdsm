@@ -222,20 +222,32 @@ void dsm_remProcessTableEntries (dsm_ptab *ptab, int fd) {
 	} while (ptab->tab[fd] != NULL);
 }
 
-// Returns fd of process with semaphore ID/ -1 if none. Copies to proc_p.
-int dsm_getProcessTableEntryWithSemID (dsm_ptab *ptab, int sem_id, 
-	dsm_proc *proc_p) {
+// Returns pointer to process with semaphore ID. Returns NULL if none exists.
+dsm_proc *dsm_getProcessTableEntryWithSemID (dsm_ptab *ptab, int sem_id, 
+    int *fd_p) {
 
-    // For all connections, search all linked lists.
-    for (unsigned int i = 0; i < ptab->size; i++) {
-        for (dsm_proc_node *n = ptab->tab[i]; n != NULL; n = n->next) {
-            if (n->proc.sem_id == sem_id) {
-                *proc_p = n->proc;
-                return i;
+    // For all file-descriptors: Search the linked-lists.
+    for (unsigned int fd = 0; fd < ptab->size; fd++) {
+
+        // Search the linked-list for the given file-descriptor.
+        for (dsm_proc_node *n = ptab->tab[fd]; n != NULL; n = n->next) {
+
+            // Ignore entries with mismatching sem_ids.
+            if (n->proc.sem_id != sem_id) {
+                continue;
             }
+            
+            // Set the file-descriptor pointer indexing this linked-list.
+            if (fd_p != NULL) {
+                *fd_p = fd;
+            }
+
+            // Return pointer to process structure.
+            return &(n->proc);
         }
     }
-    return -1;
+
+    return NULL;
 }
 
 // [DEBUG] Prints the process table.

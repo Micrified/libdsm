@@ -61,37 +61,37 @@ typedef enum {
 typedef struct dsm_payload_sid {
 	char sid[DSM_MSG_STR_SIZE];
 	union {
-		int port;
-		int nproc;
+		int32_t port;
+		int32_t nproc;
 	};
 } dsm_payload_sid;		// PACKED SIZE = 36B
 
 
 // For: [DSM_MSG_ADD_PID, DSM_MSG_SET_GID, DSM_MSG_REQ_WRT, DSM_MSG_HIT_BAR].
 typedef struct dsm_payload_proc {
-	int pid;
-	int gid;
+	int32_t pid;
+	int32_t gid;
 } dsm_payload_proc;		// PACKED SIZE = 8B
 
 
 // For: [DSM_MSG_ALL_STP, DSM_MSG_GOT_DATA].
 typedef struct dsm_payload_task {
-	int nproc;
+	int32_t nproc;
 } dsm_payload_task;		// PACKED SIZE = 4B
 
 
 // For: [DSM_MSG_WRT_DATA].
 typedef struct dsm_payload_data {
-	off_t offset;
-	size_t size;
-	unsigned char bytes[sizeof(int64_t)];
+	int32_t offset;
+	int32_t size;
+	unsigned char bytes[8];
 } dsm_payload_data;		// PACKED SIZE = 24B
 
 
 // For: [DSM_MSG_POST_SEM, DSM_MSG_WAIT_SEM].
 typedef struct dsm_payload_sem {
 	char sem_name[DSM_MSG_STR_SIZE];
-	int pid;
+	int32_t pid;
 } dsm_payload_sem;		// PACKED SIZE = 36B
 
 
