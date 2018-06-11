@@ -31,8 +31,6 @@ int main (void) {
     dsm_remProcessTableEntry(ptab, 0, 1); assert(dsm_getProcessTableEntry(ptab, 0, 1) == NULL);
     dsm_remProcessTableEntry(ptab, 1, 5); assert(dsm_getProcessTableEntry(ptab, 1, 5) == NULL);
     dsm_remProcessTableEntry(ptab, 3, 9); assert(dsm_getProcessTableEntry(ptab, 3, 9) == NULL);
-
-    // Verify the size is okay.
     assert(ptab->nproc == 12);
 
     // Set some semaphore identifiers on processes 0, and 13.
@@ -47,6 +45,9 @@ int main (void) {
         dsm_remProcessTableEntry(ptab, fd, pid);
         assert(dsm_getProcessTableEntry(ptab, fd, pid) == NULL);
     }
+
+    // Remove all processes under fd 3.
+    dsm_remProcessTableEntries(ptab, 3);
 
     // Free the process table.
     dsm_freeProcessTable(ptab);

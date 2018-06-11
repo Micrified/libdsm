@@ -10,7 +10,7 @@
 
 
 // Default number of expected machines.
-#define DSM_PTAB_NFD
+#define DSM_PTAB_NFD                32
 
 
 /*
@@ -48,7 +48,10 @@ typedef struct dsm_proc_node {
 typedef struct dsm_ptab {
     unsigned int next_gid;          // Next available global identifier.
     unsigned int size;              // The number of linked-lists.
-    unsigned int nproc;             // The number of logged processes.
+    unsigned int nproc;             // Number of logged processes.
+	unsigned int nstopped;			// The number of stopped processes.
+	unsigned int nblocked;			// The number of blocked processes.
+	unsigned int nready;			// The number of ready processes.
     dsm_proc_node **tab;            // Table of linked-lists.
 } dsm_ptab;
 
@@ -71,6 +74,9 @@ dsm_proc *dsm_getProcessTableEntry (dsm_ptab *ptab, int fd, int pid);
 
 // Removes a process for the given file-descriptor and pid. 
 void dsm_remProcessTableEntry (dsm_ptab *ptab, int fd, int pid);
+
+// Frees all processes for the given file-descriptor. Sets slot to NULL.
+void dsm_remProcessTableEntries (dsm_ptab *ptab, int fd);
 
 // Returns fd of process with semaphore ID/ -1 if none. Copies to proc_p.
 int dsm_getProcessTableEntryWithSemID (dsm_ptab *ptab, int sem_id, 

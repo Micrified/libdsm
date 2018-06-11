@@ -350,9 +350,6 @@ void init_fmaps (void) {
 	// Marshalling for: dsm_payload_task.
 	fmap[DSM_MSG_GOT_DATA] = fmap[DSM_MSG_ALL_STP] = marshall_payload_task;
 
-	// Marshalling for: dsm_payload_data.
-	fmap[DSM_MSG_WRT_DATA] = fmap[DSM_MSG_SET_MAP] = marshall_payload_data;
-
 	// Marshalling for: dsm_payload_sem.
 	fmap[DSM_MSG_POST_SEM] = fmap[DSM_MSG_WAIT_SEM] = marshall_payload_sem;
 	
@@ -494,11 +491,6 @@ void dsm_showMsg (dsm_msg *mp) {
 			printf("\n");
 			break;
 		}
-
-		case DSM_MSG_SET_MAP:
-			printf("Type: DSM_MSG_SET_MAP\n");
-			printf("size = %zu\n", mp->data.size);
-			break;
 
 		case DSM_MSG_POST_SEM:
 			printf("Type: DSM_MSG_POST_SEM\n");

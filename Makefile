@@ -1,5 +1,5 @@
 CC= gcc
-CFLAGS=-Wall -Wextra -Werror -pedantic
+CFLAGS=-Wall -Wextra -Werror -Wno-unused-function -pedantic
 LIBS=-pthread -lrt
 IDIR=./include/
 SDIR=./src/
@@ -7,6 +7,8 @@ TDIR=./tests/
 BIN=./bin/
 
 # FILE LISTS
+
+SERVER_FILES=${SDIR}dsm_server.c ${SDIR}dsm_msg.c ${SDIR}dsm_htab.c ${SDIR}dsm_inet.c ${SDIR}dsm_poll.c ${SDIR}dsm_ptab.c ${SDIR}dsm_sem_htab.c ${SDIR}dsm_stab.c ${SDIR}dsm_util.c ${SDIR}dsm_opqueue.c
 
 TEST_MSG_FILES=${TDIR}dsm_test_msg.c ${SDIR}dsm_msg.c ${SDIR}dsm_util.c
 
@@ -19,6 +21,9 @@ TEST_SEM_FILES=${SDIR}dsm_sem_htab.c ${SDIR}dsm_htab.c ${SDIR}dsm_util.c ${SDIR}
 TEST_PTAB_FILES=${TDIR}dsm_test_ptab.c ${SDIR}dsm_ptab.c ${SDIR}dsm_util.c
 
 # PRGM RULES
+
+server: ${SERVER_FILES}
+	${CC} ${CFLAGS} -I ${IDIR} -g -o ${BIN}dsm_server ${SERVER_FILES} ${LIBS}
 
 
 # TEST RULES

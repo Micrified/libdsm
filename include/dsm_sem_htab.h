@@ -43,7 +43,7 @@ typedef dsm_htab dsm_sem_htab;
 dsm_sem_htab *dsm_initSemHashTable (void);
 
 // Registers new semaphore in table. Returns pointer. Exits fatally on error.
-dsm_sem_t *dsm_setSemHashTableEntry (dsm_sem_htab *htab, char *sem_id);
+dsm_sem_t *dsm_setSemHashTableEntry (dsm_sem_htab *htab, char *sem_name);
 
 
 #endif

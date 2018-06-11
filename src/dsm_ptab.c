@@ -111,6 +111,9 @@ dsm_ptab *dsm_initProcessTable (unsigned int size) {
         .next_gid = 0,
         .size = size,
         .nproc = 0,
+		.nstopped = 0,
+		.nblocked = 0,
+		.nready = 0,
         .tab = dsm_zalloc(size * sizeof(dsm_proc_node *))
     };
 
@@ -194,6 +197,29 @@ void dsm_remProcessTableEntry (dsm_ptab *ptab, int fd, int pid) {
 
     // If the process existed, then decrement the count.
     ptab->nproc -= didExist;
+}
+
+// Frees all processes for the given file-descriptor. Sets slot to NULL.
+void dsm_remProcessTableEntries (dsm_ptab *ptab, int fd) {
+	dsm_proc_node *node;
+
+	// Verify arguments.
+	if (ptab == NULL || fd < 0 || (unsigned int)fd >= ptab->size) {
+		dsm_cpanic("dsm_remProcessTableEntries", "Invalid arguments!");
+	}
+
+	// If there is nothing at given slot. Return.
+	if (ptab->tab[fd] == NULL) {
+		return;
+	}
+
+	// Otherwise remove all entries and decrement count.
+	do {
+		node = ptab->tab[fd]->next;
+		free(ptab->tab[fd]);
+		ptab->nproc--;
+		ptab->tab[fd] = node;
+	} while (ptab->tab[fd] != NULL);
 }
 
 // Returns fd of process with semaphore ID/ -1 if none. Copies to proc_p.

@@ -18,6 +18,9 @@
 // Min macro.
 #define MIN(a,b)				((a) < (b) ? (a) : (b))
 
+// Unused macro.
+#define UNUSED(x)               (void)(x)
+
 // Size of system memory page.
 #define DSM_PAGESIZE			sysconf(_SC_PAGESIZE)
 

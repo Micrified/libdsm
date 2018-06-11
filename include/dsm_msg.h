@@ -42,7 +42,6 @@ typedef enum {
 	DSM_MSG_REQ_WRT,	// [P->A->S]	Request write access.
 	DSM_MSG_HIT_BAR,	// [P->A->S] 	Process is waiting on a barrier.
 	DSM_MSG_WRT_DATA,	// [P->A->S]	Written data.
-	DSM_MSG_SET_MAP,	// [P->A->S]	Update memory map (resize).
 	DSM_MSG_POST_SEM,	// [P->A->S]	Post on a named semaphore.
 	DSM_MSG_WAIT_SEM,	// [P->A->S]	Wait on a named semaphore.
 	DSM_MSG_EXIT,		// [P->A->S]	Exiting.
@@ -81,7 +80,7 @@ typedef struct dsm_payload_task {
 } dsm_payload_task;		// PACKED SIZE = 4B
 
 
-// For: [DSM_MSG_WRT_DATA, DSM_MSG_SET_MAP].
+// For: [DSM_MSG_WRT_DATA].
 typedef struct dsm_payload_data {
 	off_t offset;
 	size_t size;

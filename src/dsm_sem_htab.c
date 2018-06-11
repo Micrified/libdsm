@@ -16,7 +16,7 @@
 
 
 // [EXTERN] Reference to the user's string table.
-dsm_stab *stab;
+dsm_stab *g_str_tab;
 
 
 /*
@@ -40,14 +40,14 @@ static void func_free (void *data) {
 // [HTAB]: Debugging/printing routines for the semaphore hash table data.
 static void func_show (void *data) {
     dsm_sem_t *sem = (dsm_sem_t *)data;
-    const char *sem_id = dsm_getStringTableEntry(stab, sem->sem_id);
+    const char *sem_id = dsm_getStringTableEntry(g_str_tab, sem->sem_id);
     printf("ID: %s, Value: %u", sem_id, sem->value);
 }
 
 // [HTAB]: Key to data comparison routine for the semaphore hash table.
 static int func_comp (void *key, void *data) {
     dsm_sem_t *sem = (dsm_sem_t *)data;
-    const char *sem_id = dsm_getStringTableEntry(stab, sem->sem_id);
+    const char *sem_id = dsm_getStringTableEntry(g_str_tab, sem->sem_id);
 
     return (strcmp((char *)key, sem_id) == 0);
 }
@@ -68,7 +68,7 @@ dsm_sem_htab *dsm_initSemHashTable (void) {
 
 
 // Registers new semaphore in table. Returns pointer. Exits fatally on error.
-dsm_sem_t *dsm_setSemHashTableEntry (dsm_sem_htab *htab, char *sem_id) {
+dsm_sem_t *dsm_setSemHashTableEntry (dsm_sem_htab *htab, char *sem_name) {
     dsm_sem_t *sem;
 
     // Allocate semaphore. 
@@ -77,8 +77,8 @@ dsm_sem_t *dsm_setSemHashTableEntry (dsm_sem_htab *htab, char *sem_id) {
     }
 
     // Configure.
-    sem->sem_id = dsm_setStringTableEntry(stab, sem_id);
+    sem->sem_id = dsm_setStringTableEntry(g_str_tab, sem_name);
     sem->value = 0;
 
-    return dsm_setHashTableEntry(htab, sem_id, sem);
+    return dsm_setHashTableEntry(htab, sem_name, sem);
 }
