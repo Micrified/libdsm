@@ -112,7 +112,7 @@ static void send_all_msg (dsm_msg *mp) {
 }
 
 // Sends basic message without payload. If fd == -1. Message is sent to all.
-static void send_easyMsg (int fd, dsm_msg_t type) {
+static void send_easy_msg (int fd, dsm_msg_t type) {
     dsm_msg msg = {.type = type};
 
     // If fd >= 0: Send to fd.
@@ -123,6 +123,24 @@ static void send_easyMsg (int fd, dsm_msg_t type) {
 
     // Send to all.
     send_all_msg(&msg);
+}
+
+// Informs the head of the queue it can write. Used twice so made it a function!
+static void send_queue_wrt_now_msg (void) {
+    dsm_msg msg = {.type = DSM_MSG_WRT_NOW};
+    int fd, pid;
+
+    // Get head of queue. Must exist.
+    ASSERT_COND(dsm_isOpQueueEmpty(g_opqueue) == 0);
+    
+    // Get value. Extract file-descriptor and pid.
+    uint64_t v = dsm_getOpQueueHead(g_opqueue);
+    fd = DSM_MASK_FD(v);
+    pid = DSM_MASK_PID(v);
+    msg.proc.pid = pid;
+
+    // Dispatch message.
+    send_msg(fd, &msg);
 }
 
 
@@ -145,11 +163,10 @@ static void handler_all_stp (int fd, dsm_msg *mp) {
     // If all processes stopped. Inform writer and advance step.
     if ((g_proc_tab->nstopped += stopped) >= g_nproc) {
 
-        // Ensure writer exists.
-        ASSERT_COND(dsm_isOpQueueEmpty(g_opqueue) == 0);
+        // Inform head of queue it may write.
+        send_queue_wrt_now_msg();
 
-        // Inform writer. Set next step. Reset stopped count.
-        send_easyMsg(dsm_getOpQueueHead(g_opqueue), DSM_MSG_WRT_NOW);
+        // Set the next step.
         g_opqueue->step = STEP_WAITING_WRT_DATA;
         g_proc_tab->nstopped = 0;
     }
@@ -178,12 +195,12 @@ static void handler_got_data (int fd, dsm_msg *mp) {
         if (!dsm_isOpQueueEmpty(g_opqueue)) {
             printf("[%d] Performing next queued operation!\n", getpid());
             g_opqueue->step = STEP_WAITING_WRT_DATA;
-            send_easyMsg(dsm_getOpQueueHead(g_opqueue), DSM_MSG_WRT_NOW);
+            send_queue_wrt_now_msg();
             return;
         }
 
         printf("[%d] Informing all to continue!\n", getpid());
-        send_easyMsg(-1, DSM_MSG_CNT_ALL);
+        send_easy_msg(-1, DSM_MSG_CNT_ALL);
         g_opqueue->step = STEP_READY;
     }
 }
@@ -214,7 +231,7 @@ static void handler_add_pid (int fd, dsm_msg *mp) {
         g_started = 1;
 
         // Instruct all processes to begin.
-        send_easyMsg(-1, DSM_MSG_CNT_ALL);
+        send_easy_msg(-1, DSM_MSG_CNT_ALL);
 
         // Reset the barrier.
         g_proc_tab->nready = 0;
@@ -224,16 +241,19 @@ static void handler_add_pid (int fd, dsm_msg *mp) {
 // DSM_MSG_REQ_WRT: Process wishes to write.
 static void handler_req_wrt (int fd, dsm_msg *mp) {
     int isEmptyQueue = 0;
-    UNUSED(mp);
+    int pid = mp->proc.pid;
 
     // Verify state.
     ASSERT_STATE(g_started == 1);
+
+    // Verify PID and FD are valid.
+    ASSERT_COND(fd >= 0 && pid >= 0);
 
     // Copy queue state.
     isEmptyQueue = dsm_isOpQueueEmpty(g_opqueue);
 
     // Queue request.
-    dsm_enqueueOpQueue(fd, g_opqueue);
+    dsm_enqueueOpQueue((uint32_t)fd, (uint32_t)pid, g_opqueue);
 
     printf("[%d] DSM_MSG_REQ_WRT!\n", getpid());
 
@@ -244,7 +264,7 @@ static void handler_req_wrt (int fd, dsm_msg *mp) {
         ASSERT_COND(g_opqueue->step == STEP_READY);
 
         // Send stop signal and advance step.
-        send_easyMsg(-1, DSM_MSG_STP_ALL);
+        send_easy_msg(-1, DSM_MSG_STP_ALL);
         g_opqueue->step = STEP_WAITING_STOP_ACK;
     }
 }
@@ -264,7 +284,7 @@ static void handler_hit_bar (int fd, dsm_msg *mp) {
         printf("[%d] Releasing barrier!\n", getpid());
 
         // Inform blocked processes.
-        send_easyMsg(-1, DSM_MSG_REL_BAR);
+        send_easy_msg(-1, DSM_MSG_REL_BAR);
 
         // Reset barrier counter.
         g_proc_tab->nblocked = 0;
@@ -279,8 +299,8 @@ static void handler_wrt_data (int fd, dsm_msg *mp) {
     ASSERT_STATE(g_started == 1 && g_opqueue->step == STEP_WAITING_WRT_DATA);
 
     // Verify sender is writer.
-    ASSERT_COND(dsm_isOpQueueEmpty(g_opqueue) == 0 && 
-        dsm_getOpQueueHead(g_opqueue) == fd);
+    ASSERT_COND(dsm_isOpQueueEmpty(g_opqueue) == 0 && fd > 0 &&
+        DSM_MASK_FD(dsm_getOpQueueHead(g_opqueue)) == (uint32_t)fd);
 
     printf("[%d] DSM_MSG_WRT_DATA!\n", getpid());
 

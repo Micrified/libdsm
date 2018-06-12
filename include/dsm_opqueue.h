@@ -9,6 +9,11 @@
  *******************************************************************************
 */
 
+// Extracts the file-descriptor from the operation-queue storage value.
+#define DSM_MASK_FD(v)			((uint32_t)((v) & 0xFFFFFFFF))
+
+// Extracts the pid from the operation-queue return value.
+#define DSM_MASK_PID(v)			((uint32_t)((v) >> 32))
 
 // Minimum number of queuable items.
 #define DSM_MIN_OPQUEUE_SIZE	32
@@ -32,7 +37,7 @@ typedef enum dsm_syncStep {
 // Describes the current server state, and contains queued write-requests.
 typedef struct dsm_opqueue {
 	dsm_syncStep step;
-	int *queue;
+	uint64_t *queue;
 	size_t queueSize;
 	unsigned int head, tail;
 } dsm_opqueue;
@@ -55,13 +60,13 @@ void dsm_freeOpQueue (dsm_opqueue *oq);
 int dsm_isOpQueueEmpty (dsm_opqueue *oq);
 
 // Returns head of operation-queue. Exits fatally on error.
-int dsm_getOpQueueHead (dsm_opqueue *oq);
+uint64_t dsm_getOpQueueHead (dsm_opqueue *oq);
 
-// Enqueues file-descriptor in operation-queue for write. Resizes if needed.
-void dsm_enqueueOpQueue (int fd, dsm_opqueue *oq);
+// Enqueues {machine + process} in operation-queue for write.
+void dsm_enqueueOpQueue (uint32_t fd, uint32_t pid, dsm_opqueue *oq);
 
 // Dequeues file-descriptor from operation queue. Panics on error.
-int dsm_dequeueOpQueue (dsm_opqueue *oq);
+uint64_t dsm_dequeueOpQueue (dsm_opqueue *oq);
 
 // Prints the operation-queue.
 void dsm_showOpQueue (dsm_opqueue *oq);

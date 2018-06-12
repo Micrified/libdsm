@@ -336,9 +336,8 @@ void init_fmaps (void) {
 	}
 
 	// Marshalling for: No payload.
-	fmap[DSM_MSG_STP_ALL] = fmap[DSM_MSG_CNT_ALL] = fmap[DSM_MSG_REL_BAR] = 
-		fmap[DSM_MSG_WRT_NOW] = fmap[DSM_MSG_EXIT] =
-		marshall_payload_none;
+	fmap[DSM_MSG_STP_ALL] = fmap[DSM_MSG_CNT_ALL] = fmap[DSM_MSG_REL_BAR] 
+		= fmap[DSM_MSG_EXIT] = marshall_payload_none;
 
 	// Marshalling for: dsm_payload_sid.
 	fmap[DSM_MSG_SET_SID] = fmap[DSM_MSG_DEL_SID] = fmap[DSM_MSG_GET_SID] = 
@@ -346,7 +345,7 @@ void init_fmaps (void) {
 
 	// Marshalling for: dsm_payload_proc.
 	fmap[DSM_MSG_ADD_PID] = fmap[DSM_MSG_SET_GID] = fmap[DSM_MSG_HIT_BAR] =
-		fmap[DSM_MSG_REQ_WRT] = marshall_payload_proc;
+		fmap[DSM_MSG_REQ_WRT] = fmap[DSM_MSG_WRT_NOW] = marshall_payload_proc;
 
 	// Marshalling for: dsm_payload_task.
 	fmap[DSM_MSG_GOT_DATA] = fmap[DSM_MSG_ALL_STP] = marshall_payload_task;
@@ -444,6 +443,8 @@ void dsm_showMsg (dsm_msg *mp) {
 
 		case DSM_MSG_WRT_NOW:
 			printf("Type: DSM_MSG_WRT_NOW\n");
+			printf("pid = %" PRId32 "\n", mp->proc.pid);
+			printf("gid = %" PRId32 "\n", mp->proc.gid);
 			break;
 
 		case DSM_MSG_SET_GID:

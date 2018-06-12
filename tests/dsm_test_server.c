@@ -7,9 +7,10 @@
 #include "dsm_util.h"
 #include "dsm_inet.h"
 
+// Socket connected to the server.
 int sock;
 
-
+// Receive a message and verify it.
 void recv_message (void) {
     unsigned char buf[DSM_MSG_SIZE];
     dsm_msg msg;
@@ -24,6 +25,7 @@ void recv_message (void) {
     dsm_showMsg(&msg);
 }
 
+// Send a message.
 void send_message (int option) {
     dsm_msg msg = {0};
     unsigned char buf[DSM_MSG_SIZE];

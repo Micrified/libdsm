@@ -22,6 +22,8 @@ TEST_PTAB_FILES=${TDIR}dsm_test_ptab.c ${SDIR}dsm_ptab.c ${SDIR}dsm_util.c
 
 TEST_SERVER_FILES=${TDIR}dsm_test_server.c ${SDIR}dsm_msg.c ${SDIR}dsm_inet.c ${SDIR}dsm_util.c
 
+TEST_SERVER_AUTO_FILES=${TDIR}dsm_test_server_auto.c ${SDIR}dsm_msg.c ${SDIR}dsm_inet.c ${SDIR}dsm_util.c
+
 # PRGM RULES
 
 server: ${SERVER_FILES}
@@ -30,7 +32,7 @@ server: ${SERVER_FILES}
 
 # TEST RULES
 
-tests: test_server
+tests: test_server_auto
 
 test_msg: ${TEST_MSG_FILES}
 	${CC} ${CFLAGS} -I ${IDIR} -g -o ${BIN}dsm_test_msg ${TEST_MSG_FILES} ${LIBS}
@@ -49,6 +51,9 @@ test_ptab: ${TEST_PTAB_FILES}
 
 test_server: ${TEST_SERVER_FILES}
 	${CC} ${CFLAGS} -I ${IDIR} -g -o ${BIN}dsm_test_server ${TEST_SERVER_FILES} ${LIBS}
+
+test_server_auto: ${TEST_SERVER_AUTO_FILES}
+	${CC} ${CFLAGS} -I ${IDIR} -g -o ${BIN}dsm_test_server_auto ${TEST_SERVER_AUTO_FILES} ${LIBS}
 
 
 

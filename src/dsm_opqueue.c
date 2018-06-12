@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 
 #include "dsm_opqueue.h"
 #include "dsm_util.h"
@@ -23,7 +24,7 @@ dsm_opqueue *dsm_initOpQueue (size_t queueSize) {
 	}
 
 	// Set queue itself.
-	if ((oq->queue = malloc(queueSize * sizeof(int))) == NULL) {
+	if ((oq->queue = malloc(queueSize * sizeof(uint64_t))) == NULL) {
 		dsm_cpanic("dsm_initOpQueue failed!", "Allocation error");
 	}
 
@@ -50,18 +51,18 @@ int dsm_isOpQueueEmpty (dsm_opqueue *oq) {
 }
 
 // Returns tail of operation-queue. Exits fatally on error.
-int dsm_getOpQueueHead (dsm_opqueue *oq) {
+uint64_t dsm_getOpQueueHead (dsm_opqueue *oq) {
 	if (dsm_isOpQueueEmpty(oq) == 1) {
 		dsm_cpanic("dsm_getOpQueueHead", "Can't get tail of empty queue!");
 	}
 	return oq->queue[oq->tail];
 }
 
-// Enqueues file-descriptor in operation-queue for write. Resizes if needed.
-void dsm_enqueueOpQueue (int fd, dsm_opqueue *oq) {
+// Enqueues {machine + process} in operation-queue for write.
+void dsm_enqueueOpQueue (uint32_t fd, uint32_t pid, dsm_opqueue *oq) {
 	size_t new_queueSize;
 	unsigned int i, j;
-	int *new_queue;
+	uint64_t *new_queue;
 
 	// Resize queue if full.
 	if ((oq->head + 1) % oq->queueSize == oq->tail) {
@@ -70,7 +71,7 @@ void dsm_enqueueOpQueue (int fd, dsm_opqueue *oq) {
 		new_queueSize = 2 * oq->queueSize;
 
 		// Allocate the new queue.
-		if ((new_queue = malloc(new_queueSize * sizeof(int))) == NULL) {
+		if ((new_queue = malloc(new_queueSize * sizeof(uint64_t))) == NULL) {
 			dsm_cpanic("dsm_enqueueOpQueue", "Couldn't resize queue");
 		}
 
@@ -90,14 +91,18 @@ void dsm_enqueueOpQueue (int fd, dsm_opqueue *oq) {
 		oq->tail = 0;
 	}
 
+	// Compute new item.
+	uint64_t long_fd = fd;
+	uint64_t long_pid = pid;
+
 	// Enroll item.
-	oq->queue[oq->head] = fd;
+	oq->queue[oq->head] = (long_fd | (long_pid << 32));
 	oq->head = (oq->head + 1) % oq->queueSize;
 }
 
 // Dequeues file-descriptor from operation queue. Panics on error.
-int dsm_dequeueOpQueue (dsm_opqueue *oq) {
-	int val;
+uint64_t dsm_dequeueOpQueue (dsm_opqueue *oq) {
+	int64_t val;
 
 	// Error out if queue is empty.
 	if (oq->tail == oq->head) {
@@ -115,7 +120,8 @@ void dsm_showOpQueue (dsm_opqueue *oq) {
 	printf("Operation Step = %d\n", oq->step);
 	printf("Operation Queue = [");
 	for (unsigned i = oq->tail; i != oq->head; i = (i + 1) % oq->queueSize) {
-		printf("%d", oq->queue[i]);
+		uint64_t v = oq->queue[i];
+		printf("{%" PRIu32 ": %" PRIu32 "}", DSM_MASK_FD(v), DSM_MASK_PID(v));
 		if (i < (oq->head - 1)) {
 			putchar(',');
 		}
