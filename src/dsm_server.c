@@ -425,7 +425,7 @@ static void handle_new_connection (int fd) {
     // Panic if can't accept connection.
     if ((sock_new = accept(fd, (struct sockaddr *)&newAddr, &newAddrSize)) 
         == -1) {
-        dsm_panic("handle_connection: Couldn't accept new connection!");
+        dsm_panic("handle_new_connection: Couldn't accept new connection!");
     }
 
     // Add to pollable set.
@@ -440,7 +440,8 @@ static void handle_new_message (int fd) {
 
     // Read in data. Abort if sender disconnected (recvall returns nonzero).
     if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
-        dsm_cpanic("handle_msg", "Participant lost connection. Unsafe state!");
+        dsm_cpanic("handle_new_msg", 
+			"Participant lost connection. Unsafe state!");
     } else {
         dsm_unpack_msg(&msg, buf);
     }

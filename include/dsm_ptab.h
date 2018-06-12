@@ -72,6 +72,13 @@ dsm_proc *dsm_setProcessTableEntry (dsm_ptab *ptab, int fd, int pid);
 // Returns a process for the given file-descriptor and pid. May return NULL.
 dsm_proc *dsm_getProcessTableEntry (dsm_ptab *ptab, int fd, int pid);
 
+// Returns the first process found with the given pid in all file-descriptors.
+dsm_proc *dsm_findProcessTableEntry (dsm_ptab *ptab, int pid, int *fd_p);
+
+// Maps the given function to all processes in the table.
+void dsm_mapFuncToProcessTableEntries (dsm_ptab *ptab, 
+    void (*func_map)(int, dsm_proc *));
+
 // Removes a process for the given file-descriptor and pid. 
 void dsm_remProcessTableEntry (dsm_ptab *ptab, int fd, int pid);
 

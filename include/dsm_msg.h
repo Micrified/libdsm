@@ -67,7 +67,8 @@ typedef struct dsm_payload_sid {
 } dsm_payload_sid;		// PACKED SIZE = 36B
 
 
-// For: [DSM_MSG_ADD_PID, DSM_MSG_SET_GID, DSM_MSG_REQ_WRT, DSM_MSG_HIT_BAR].
+// For: [DSM_MSG_ADD_PID, DSM_MSG_SET_GID, DSM_MSG_REQ_WRT, DSM_MSG_HIT_BAR,
+//	DSM_MSG_WRT_NOW].
 typedef struct dsm_payload_proc {
 	int32_t pid;
 	int32_t gid;

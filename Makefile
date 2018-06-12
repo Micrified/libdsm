@@ -10,6 +10,8 @@ BIN=./bin/
 
 SERVER_FILES=${SDIR}dsm_server.c ${SDIR}dsm_msg.c ${SDIR}dsm_htab.c ${SDIR}dsm_inet.c ${SDIR}dsm_poll.c ${SDIR}dsm_ptab.c ${SDIR}dsm_sem_htab.c ${SDIR}dsm_stab.c ${SDIR}dsm_util.c ${SDIR}dsm_opqueue.c
 
+ARBITER_FILES=${SDIR}dsm_arbiter.c ${SDIR}dsm_msg.c ${SDIR}dsm_inet.c ${SDIR}dsm_poll.c ${SDIR}dsm_ptab.c ${SDIR}dsm_util.c
+
 TEST_MSG_FILES=${TDIR}dsm_test_msg.c ${SDIR}dsm_msg.c ${SDIR}dsm_util.c
 
 TEST_HTAB_FILES=${TDIR}dsm_test_htab.c ${SDIR}dsm_htab.c ${SDIR}dsm_util.c
@@ -28,6 +30,9 @@ TEST_SERVER_AUTO_FILES=${TDIR}dsm_test_server_auto.c ${SDIR}dsm_msg.c ${SDIR}dsm
 
 server: ${SERVER_FILES}
 	${CC} ${CFLAGS} -I ${IDIR} -g -o ${BIN}dsm_server ${SERVER_FILES} ${LIBS}
+
+arbiter: ${ARBITER_FILES}
+	${CC} ${CFLAGS} -I ${IDIR} -g -o ${BIN}dsm_arbiter ${ARBITER_FILES} ${LIBS}
 
 
 # TEST RULES

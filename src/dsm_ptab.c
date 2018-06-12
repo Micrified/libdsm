@@ -53,6 +53,22 @@ static dsm_proc *getProcessTableEntry (dsm_proc_node *node, int pid) {
     return getProcessTableEntry(node->next, pid);
 }
 
+// Maps the given function to all entries in the list. 
+static void mapFuncToProcessTableEntry (dsm_proc_node *node, 
+    int fd, void (*func_map)(int, dsm_proc *)) {
+
+    // Recursive guard.
+    if (node == NULL) {
+        return;
+    }
+
+    // Map to current entry.
+    func_map(fd, &(node->proc));
+
+    // Move to next node.
+    mapFuncToProcessTableEntry(node->next, fd, func_map);
+}
+
 // Removes entry with specified pid from linked-list. Returns self.
 static dsm_proc_node *remProcessTableEntry (dsm_proc_node *node, int pid, 
     int *didExist) {
@@ -176,6 +192,51 @@ dsm_proc *dsm_getProcessTableEntry (dsm_ptab *ptab, int fd, int pid) {
     }
 
     return getProcessTableEntry(ptab->tab[fd], pid);
+}
+
+// Returns the first process found with the given pid in all file-descriptors.
+dsm_proc *dsm_findProcessTableEntry (dsm_ptab *ptab, int pid, int *fd_p) {
+    dsm_proc *proc = NULL;
+
+    // Verify input.
+    if (ptab == NULL) {
+        dsm_cpanic("dsm_findProcessTableEntry", "Invalid arguments!");
+    }
+
+    // Search all entries for the given pid.
+    for (unsigned int i = 0; i < ptab->size; i++) {
+
+        // Skip lists that don't contain it.
+        if ((proc = getProcessTableEntry(ptab->tab[i], pid)) == NULL) {
+            continue;
+        }
+
+        // Set file-descriptor pointer if supplied.
+        if (fd_p != NULL) {
+            *fd_p = i;
+        }
+
+        // Return entry.
+        return proc;
+    }
+
+    return proc;
+}
+
+// Maps the given function to all processes in the table.
+void dsm_mapFuncToProcessTableEntries (dsm_ptab *ptab, 
+    void (*func_map)(int, dsm_proc *)) {
+
+    // Verify arguments.
+    if (ptab == NULL || func_map == NULL) {
+        dsm_cpanic("dsm_mapFuncToProcessTableEntries", "Invalid arguments!");
+    }
+
+    // Map to all linked lists.
+    for (unsigned int i = 0; i < ptab->size; i++) {
+        mapFuncToProcessTableEntry(ptab->tab[i], i, func_map);
+    }
+    
 }
 
 // Removes a process for the given file-descriptor and pid. 
