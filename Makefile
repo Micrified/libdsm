@@ -1,5 +1,5 @@
 CC= gcc
-CFLAGS=-Wall -Wextra -Werror -Wno-unused-function -pedantic
+CFLAGS=-Wall -Wextra -Werror -Wno-unused-function -pedantic -D_GNU_SOURCE
 LIBS=-pthread -lrt
 IDIR=./include/
 SDIR=./src/

@@ -147,7 +147,7 @@ dsm_proc *dsm_setProcessTableEntry (dsm_ptab *ptab, int fd, int pid) {
 
     // Resize the table if the file-descriptor does not have a slot.
     if ((unsigned int)fd >= ptab->size) {
-        resizeProcessTable(ptab, MAX(ptab->size * 2, (unsigned int)fd));
+        resizeProcessTable(ptab, MAX(ptab->size * 2, (unsigned int)fd + 1));
     }
 
     // Verify process doesn't exist: If you resize then it didn't, but eh.
@@ -318,6 +318,10 @@ void dsm_showProcessTable (dsm_ptab *ptab) {
 
     // Show individual tables.
     for (unsigned int i = 0; i < ptab->size; i++) {
+
+        // Skip empty entries.
+        if (ptab->tab[i] == NULL) continue;
+        
         printf("--------------------------------[fd = %d]------"\
 			"--------------------------------\n", i);
         printf(" gid\tpid\tsem_id\ts\tb\tq\n");

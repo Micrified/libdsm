@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -32,13 +33,6 @@
 
 // The name of the shared initialization semaphore.
 #define DSM_SEM_INIT_NAME			"dsm_start"
-
-// The name of the shared file.
-#define DSM_SHM_FILE_NAME			"dsm_file"
-
-// The minimum size of a shared memory file.
-#define DSM_SHM_FILE_SIZE			(2 * DSM_PAGESIZE)
-
 
 
 /*
@@ -73,7 +67,7 @@ int g_sock_io;
 
 // Opens or creates semaphore with initial value 'val'. Returns semaphore ptr.
 static sem_t *getSem (const char *name, unsigned int val) {
-	sem_t *sp;
+	sem_t *sp = NULL;
 
 	// Try creating exclusive semaphore. Defer EEXIST error.
 	if ((sp = sem_open(name, O_CREAT|O_EXCL|O_RDWR, S_IRUSR|S_IWUSR, val))
@@ -194,6 +188,12 @@ static void recv_msg (int fd, dsm_msg *mp) {
  *******************************************************************************
 */
 
+// Sends DSM_MSG_ADD_PID to the arbiter.
+static void send_add_pid (void) {
+    dsm_msg msg = {.type = DSM_MSG_ADD_PID};
+    msg.proc.pid = getpid();
+    send_msg(g_sock_io, &msg);
+}
 
 // Sends DSM_MSG_HIT_BAR to the arbiter.
 static void send_hit_bar (void) {
@@ -220,8 +220,9 @@ static void send_exit (void) {
 }
 
 // Receives DSM_POST_SEM from arbiter.
-static void recv_post_sem (void) {
+static void recv_post_sem (const char *sem_name) {
     dsm_msg msg;
+    UNUSED(sem_name);
 
     // Receive message.
     recv_msg(g_sock_io, &msg);
@@ -231,7 +232,7 @@ static void recv_post_sem (void) {
 }
 
 // Receives DSM_MSG_SET_GID from arbiter. Sets the process global identifier.
-static void recv_set_gid (void) {
+static int recv_set_gid (void) {
     dsm_msg msg;
 
     // Receive message.
@@ -240,8 +241,8 @@ static void recv_set_gid (void) {
     // Verify.
     ASSERT_COND(msg.type == DSM_MSG_SET_GID && msg.proc.pid == getpid());
 
-    // Set global identifier.
-    g_gid = msg.proc.gid;
+    // Return global identifier.
+    return msg.proc.gid;
 }
 
 
@@ -279,17 +280,20 @@ void *dsm_init (dsm_cfg *cfg) {
 
     // If first: Fork arbiter.
     if (first && fork() == 0) {
+        printf("[%d] Arbiter launching...\n", getpid());
         dsm_arbiter(cfg);
     }
+    dsm_redirXterm();
+    printf("[%d] Waiting to begin...\n", getpid());
 
     // Wait on initialization semaphore for release by arbiter.
     dsm_down(g_sem_start);
 
     // Connect to arbiter.
-    g_sock_io = dsm_getConnectedSocket(DSM_LOOPBACK_ADDR, DSM_DEF_ARB_PORT);
+    g_sock_io = dsm_getConnectedSocket(DSM_LOOPBACK_ADDR, DSM_ARB_PORT);
 
-    // Set global process identifier.
-    g_gid = recv_set_gid();
+    // Send check-in message.
+    send_add_pid();
 
     // Initialize decoder.
     dsm_sync_init();
@@ -301,13 +305,29 @@ void *dsm_init (dsm_cfg *cfg) {
     // Protect shared page.
     dsm_mprotect(g_shared_map, g_map_size, PROT_READ);
 
-    // Block until start message is received.
-	if (kill(getpid(), SIGTSTP) == -1) {
-		dsm_panic("Couldn't suspend process!\n");
-	}
+    // Block until start signal (set_gid) is received.
+    g_gid = recv_set_gid();
+    printf("[%d] I got gid: %d\n", getpid(), dsm_getgid());
 
     // Return shared map pointer.
+    printf("[%d] Starting...!\n", getpid());
     return g_shared_map;
+}
+
+// Initializes the shared memory system with default configuration.
+// Returns a pointer to the shared map.
+void *dsm_init2 (unsigned int nproc, size_t map_size) {
+
+    // Default configuration.
+    dsm_cfg cfg = {
+        .nproc = nproc,
+        .sid = "Tulip",
+        .d_addr = "127.0.0.1",
+        .d_port = "4800",
+        .map_size = map_size
+    };
+
+    return dsm_init(&cfg);
 }
 
 // Returns the global process identifier (GID) to the caller.
@@ -318,7 +338,7 @@ int dsm_getgid (void) {
 // Blocks process until all other processes are synchronized at the same point.
 void dsm_barrier (void) {
     send_hit_bar();
-    kill(getpid(), SITGSTP);
+    kill(getpid(), SIGTSTP);
 }
 
 // Posts (up's) on the named semaphore. Semaphore is created if needed.
@@ -335,17 +355,21 @@ void dsm_wait (const char *sem_name) {
 // Disconnects from shared memory system. Unmaps shared memory.
 void dsm_exit (void) {
 
+
     // Verify: Initializer has been called.
     ASSERT_STATE(g_sock_io != -1 && g_shared_map != NULL);
+
+    // Exit synchronization.
+    dsm_barrier();
 
     // Send exit message.
     send_exit();
 
     // Close socket.
-    close(g_sem_io);
+    close(g_sock_io);
 
     // Reset socket.
-    g_sem_io = -1;
+    g_sock_io = -1;
 
     // Unmap shared file.
     if (munmap(g_shared_map, g_map_size) == -1) {
@@ -358,4 +382,34 @@ void dsm_exit (void) {
     // Reset signal handlers.
     dsm_sigdefault(SIGSEGV);
     dsm_sigdefault(SIGILL);
+}
+
+int main (void) {
+
+    // Fork.
+    fork(); printf("[%d] Starting...\n", getpid());
+
+    // Get the shared map.
+    void *map = dsm_init2(2, DSM_PAGESIZE * 2);
+    printf("[%d] map: %p -> %p\n", getpid(), map, (void *)((uintptr_t)map + DSM_PAGESIZE * 2));
+    // Cast shared integer.
+    int *turn = (int *)map;
+
+    // Ping pong.
+    for (int i = 0; i < 5; i++) {
+        while (*turn != dsm_getgid());
+        if (dsm_getgid() == 0) {
+            printf("Ping! ...\n");
+        } else {
+            printf("... Pong!\n");
+        }
+        sleep(1);
+        *turn = 1 - *turn;
+    }
+
+    // Call de-initializer.
+    dsm_exit();
+
+
+    return 0;
 }

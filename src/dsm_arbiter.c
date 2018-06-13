@@ -61,6 +61,10 @@ extern sem_t *g_sem_start;
 // [EXTERN] Pointer to the shared (and protected) memory map.
 extern void *g_shared_map;
 
+// [EXTERN] Size of the shared map.
+extern off_t g_map_size;
+
+
 
 /*
  *******************************************************************************
@@ -113,15 +117,28 @@ static void send_task_msg (int fd, dsm_msg_t type) {
 */
 
 // Forward declaration of signalProcess.
-static void signalProcess (int fd, int signal);
+static void signalProcess (int pid, int signal);
+
+// Sends the process it's GID.
+static void map_gid_all (int fd, dsm_proc *proc_p) {
+    dsm_msg msg = {.type = DSM_MSG_SET_GID};
+
+    // Unset stopped bit (set at start).
+    proc_p->flags.is_stopped = 0;
+
+    msg.proc.pid = proc_p->pid;
+    msg.proc.gid = proc_p->gid;
+    send_msg(fd, &msg);
+}
 
 // Sets stopped bit on process. Signals if not blocked, stopped, or queued.
 static void map_stp_all (int fd, dsm_proc *proc_p) {
+    UNUSED(fd);
 
     // If not stopped, blocked, or queued, then signal.
     if (proc_p->flags.is_stopped == 0 && proc_p->flags.is_blocked == 0
         && proc_p->flags.is_queued == 0) {
-        signalProcess(fd, SIGTSTP);
+        signalProcess(proc_p->pid, SIGTSTP);
     }
 
     // Set stopped bit.
@@ -130,19 +147,21 @@ static void map_stp_all (int fd, dsm_proc *proc_p) {
 
 // Unsets stopped bit on process. Signals if not blocked or queued.
 static void map_cnt_all (int fd, dsm_proc *proc_p) {
+    UNUSED(fd);
 
     // Unset stopped bit.
     proc_p->flags.is_stopped = 0;
 
     // If not blocked or queued, then signal.
     if (proc_p->flags.is_blocked == 0 && proc_p->flags.is_queued == 0) {
-        signalProcess(fd, SIGCONT);
+        signalProcess(proc_p->pid, SIGCONT);
     }
 }
 
 // Unsets blocked bit on process. Sends release message.
 static void map_rel_bar (int fd, dsm_proc *proc_p) {
-
+    UNUSED(fd);
+    
     // Unset blocked bit.
     proc_p->flags.is_blocked = 0;
 
@@ -150,7 +169,7 @@ static void map_rel_bar (int fd, dsm_proc *proc_p) {
     ASSERT_COND(proc_p->flags.is_stopped == 0 && proc_p->flags.is_queued == 0);
 
     // Allow process to continue.
-    send_easy_msg(fd, DSM_MSG_REL_BAR);
+    signalProcess(proc_p->pid, SIGCONT);
 }
 
 
@@ -182,11 +201,15 @@ static void handler_cnt_all (int fd, dsm_msg *mp) {
     ASSERT_COND(fd == g_sock_server);
 
 
-    // Otherwise, set as started. Destroy shared files. 
+    // Otherwise, set as started. Destroy shared files. send start message.
     if (g_started == 0) {
         g_started = 1;
         dsm_unlinkSharedFile(DSM_SHM_FILE_NAME);
         dsm_unlinkNamedSem(DSM_SEM_INIT_NAME);
+
+        // Send each process it's GID to start it. 
+        dsm_mapFuncToProcessTableEntries(g_proc_tab, map_gid_all);
+        return;
     }
 
     // For all processes: Unset stopped bit. Signal if not blocked.
@@ -237,9 +260,6 @@ static void handler_set_gid (int fd, dsm_msg *mp) {
 
     // Update GID for PID in table.
     proc_p->gid = gid;
-
-    // Relay message to process.
-    send_msg(proc_fd, mp);
 }
 
 // DSM_MSG_ADD_PID: Process checking in. 
@@ -308,12 +328,22 @@ static void handler_wrt_data (int fd, dsm_msg *mp) {
     // Verify state.
     ASSERT_STATE(g_started == 1);
 
-    // Forward to all if from server. Otherwise send to server.
-    if (fd == g_sock_server) {
-        send_all_msg(mp);
-    } else {
+    // If it's coming from a local process, forward to server.
+    if (fd != g_sock_server) {
         send_msg(g_sock_server, mp);
+        return;
+    } else {
+
+        // Otherwise synchronize the shared memory.
+        dsm_mprotect(g_shared_map, g_map_size, PROT_WRITE);
+        void *dest = (void *)((uintptr_t)g_shared_map + mp->data.offset);
+        void *src = (void *)mp->data.bytes;
+        memcpy(dest, src, 8);
+        dsm_mprotect(g_shared_map, g_map_size, PROT_READ);
     }
+
+    // Send synchronization message.
+    send_task_msg(g_sock_server, DSM_MSG_GOT_DATA);
 }
 
 // DSM_MSG_POST_SEM: Process posted to a named semaphore.
@@ -395,9 +425,11 @@ static void handler_exit (int fd, dsm_msg *mp) {
 */
 
 
-// Sends signal to 'fd'. If -1 is specified, sends to all fds in ptab.
-static void signalProcess (int fd, int signal) {
-    printf("SIGNAL: %d to %d\n", signal, fd);
+// Sends signal to 'pid'. 
+static void signalProcess (int pid, int signal) {
+    if (kill(pid, signal) == -1) {
+        dsm_panicf("Could not send signal: %d to process %d!\n", signal, pid);
+    }
 }
 
 // Contacts daemon with sid, sets session details. Exits fatally on error.

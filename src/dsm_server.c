@@ -91,15 +91,19 @@ static void send_msg (int fd, dsm_msg *mp) {
     dsm_sendall(fd, buf, DSM_MSG_SIZE);
 }
 
-// Sends a message to all file-descriptors. Performs packing task.
-static void send_all_msg (dsm_msg *mp) {
+// Sends a message to all file-descriptors but except. Performs packing task.
+static void send_all_msg (dsm_msg *mp, int except) {
     unsigned char buf[DSM_MSG_SIZE];
 
     // Pack message.
     dsm_pack_msg(mp, buf);
 
     // Send to all. Skip listener socket at index zero.
-    for (unsigned int i = 1; i < g_pollSet->fp; i++) {
+    for (int i = 1; i < (int)g_pollSet->fp; i++) {
+
+        if (i == except) {
+            continue;
+        }
         dsm_sendall(g_pollSet->fds[i].fd, buf, DSM_MSG_SIZE);
     }
 }
@@ -115,7 +119,7 @@ static void send_easy_msg (int fd, dsm_msg_t type) {
     }
 
     // Send to all.
-    send_all_msg(&msg);
+    send_all_msg(&msg, -1);
 }
 
 // Informs the head of the queue it can write. Used twice so made it a function!
@@ -295,25 +299,11 @@ static void handler_wrt_data (int fd, dsm_msg *mp) {
     ASSERT_COND(dsm_isOpQueueEmpty(g_opqueue) == 0 && fd > 0 &&
         DSM_MASK_FD(dsm_getOpQueueHead(g_opqueue)) == (uint32_t)fd);
 
-    printf("[%d] DSM_MSG_WRT_DATA!\n", getpid());
 
-    // Jump to handler_got_data if only one arbiter involved.
-    if (g_pollSet->fp == 2) {
-        printf("[%d] Only one arbiter, skipping to cont!\n", getpid());
-        // Change step.
-        g_opqueue->step = STEP_WAITING_SYNC_ACK;
+    printf("[%d] Sending data to all except sender!\n", getpid());
 
-        // Invoke handler_got_data with full process count.
-        mp->type = DSM_MSG_GOT_DATA;
-        mp->task.nproc = g_nproc;
-        handler_got_data(fd, mp);
-        return;
-    }
-
-    printf("[%d] Sending data to all!\n", getpid());
-
-    // Otherwise: Forward data to all arbiters.
-    send_all_msg(mp);
+    // Otherwise: Forward data to all arbiters except the sender.
+    send_all_msg(mp, fd);
 
     // Set new state step.
     g_opqueue->step = STEP_WAITING_SYNC_ACK;

@@ -15,6 +15,10 @@
 // Returns a pointer to the shared map.
 void *dsm_init (dsm_cfg *cfg);
 
+// Initializes the shared memory system with default configuration.
+// Returns a pointer to the shared map.
+void *dsm_init2 (unsigned int nproc, size_t map_size);
+
 // Returns the global process identifier (GID) to the caller.
 int dsm_getgid (void);
 

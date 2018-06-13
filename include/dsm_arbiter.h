@@ -11,6 +11,15 @@
 // The default port at which the arbiter can be reached.
 #define DSM_ARB_PORT	"4800"
 
+// The name of the shared file.
+#define DSM_SHM_FILE_NAME			"dsm_file"
+
+// The name of the shared initialization semaphore.
+#define DSM_SEM_INIT_NAME			"dsm_start"
+
+// The minimum size of a shared memory file.
+#define DSM_SHM_FILE_SIZE			(2 * (unsigned int)DSM_PAGESIZE)
+
 
 /*
  *******************************************************************************

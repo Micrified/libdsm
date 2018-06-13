@@ -83,7 +83,7 @@ static void recv_msg (int fd, dsm_msg *mp) {
 */
 
 
-// Performs ILD on given address for decoder state. Returns instruction length.
+// Performs ILD on given address for decoder state. Returns length in bytes.
 static xed_uint_t getInstLength (void *addr, xed_state_t *decoderState) {
 	static xed_decoded_inst_t xedd;
 	xed_error_enum_t err;
@@ -123,9 +123,9 @@ static void dropAccess (void) {
 	dsm_msg msg = {.type = DSM_MSG_WRT_DATA};
 
 	// Configure message: Size assumed to be 64 bits.
-	msg.data.offset = g_fault_addr - g_shared_map;
+	msg.data.offset = (uintptr_t)g_fault_addr - (uintptr_t)g_shared_map;
 	msg.data.size = sizeof(int64_t);
-	memcpy(g_fault_addr, msg.data.bytes, msg.data.size);
+	memcpy(msg.data.bytes, g_fault_addr, msg.data.size);
 
 	// Send mesage.
 	send_msg(g_sock_io, &msg);
@@ -151,7 +151,7 @@ void dsm_sync_init (void) {
 	xed_tables_init();
 
 	// Setup machine state.
-	xed_state_init2(&xed_machine_state, XED_MACHINE_MODE_LONG_64,
+	xed_state_init2(&g_xed_machine_state, XED_MACHINE_MODE_LONG_64,
 		XED_ADDRESS_WIDTH_64b);
 }
 
@@ -160,15 +160,16 @@ void dsm_sync_sigsegv (int signal, siginfo_t *info, void *ucontext) {
 	ucontext_t *context = (ucontext_t *)ucontext;
 	void *prgm_counter = (void *)context->uc_mcontext.gregs[REG_RIP];
 	xed_uint_t len;
+	UNUSED(signal);
 
-	printf("[%d] SIGSEGV!\n", getpid());
+	printf("[%d] SIGSEGV (%p)!\n", getpid(), info->si_addr);
 
 	// Set fault address.
 	g_fault_addr = info->si_addr;
 
 	// Verify address is within shared page. Otherwise panic.
-	if (g_fault_addr < g_shared_map || 
-		g_fault_addr >= g_shared_map + g_map_size) {
+	if ((uintptr_t)g_fault_addr < (uintptr_t)g_shared_map || 
+		(uintptr_t)g_fault_addr >= (uintptr_t)g_shared_map + g_map_size) {
 		dsm_panicf("Segmentation Fault: %p", g_fault_addr);
 	}
 
@@ -179,14 +180,14 @@ void dsm_sync_sigsegv (int signal, siginfo_t *info, void *ucontext) {
 	len = getInstLength(prgm_counter, &g_xed_machine_state);
 
 	// Compute start of next instruction.
-	void *nextInst = prgm_counter + len;
+	void *nextInst = (void *)((uintptr_t)prgm_counter + len);
 
 	// Copy out UD2_SIZE bytes for fault substitution.
 	memcpy(g_inst_buf, nextInst, UD2_SIZE);
 
 	// Assign full access permissions to program text page.
 	off_t offset = (uintptr_t)nextInst % (uintptr_t)DSM_PAGESIZE;
-	void *pageStart = nextInst - offset;
+	void *pageStart = (void *)((uintptr_t)nextInst - offset);
 	dsm_mprotect(pageStart, DSM_PAGESIZE, PROT_READ|PROT_WRITE|PROT_EXEC);
 
 	// Copy in the UD2 instruction.
@@ -200,6 +201,10 @@ void dsm_sync_sigsegv (int signal, siginfo_t *info, void *ucontext) {
 void dsm_sync_sigill (int signal, siginfo_t *info, void *ucontext) {
 	ucontext_t *context = (ucontext_t *)ucontext;
 	void *prgm_counter = (void *)context->uc_mcontext.gregs[REG_RIP];
+	UNUSED(signal);
+	UNUSED(info);
+
+	printf("SIGILL!\n"); fflush(stdout);
 
 	// Restore origin instruction.
 	memcpy(prgm_counter, g_inst_buf, UD2_SIZE);
