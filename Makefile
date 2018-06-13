@@ -12,6 +12,8 @@ SERVER_FILES=${SDIR}dsm_server.c ${SDIR}dsm_msg.c ${SDIR}dsm_htab.c ${SDIR}dsm_i
 
 ARBITER_FILES=${SDIR}dsm_arbiter.c ${SDIR}dsm_msg.c ${SDIR}dsm_inet.c ${SDIR}dsm_poll.c ${SDIR}dsm_ptab.c ${SDIR}dsm_util.c
 
+DSM_FILES=${SDIR}dsm.c ${SDIR}dsm_sync.c ${SDIR}dsm_signal.c
+
 TEST_MSG_FILES=${TDIR}dsm_test_msg.c ${SDIR}dsm_msg.c ${SDIR}dsm_util.c
 
 TEST_HTAB_FILES=${TDIR}dsm_test_htab.c ${SDIR}dsm_htab.c ${SDIR}dsm_util.c
@@ -33,6 +35,9 @@ server: ${SERVER_FILES}
 
 arbiter: ${ARBITER_FILES}
 	${CC} ${CFLAGS} -I ${IDIR} -g -o ${BIN}dsm_arbiter ${ARBITER_FILES} ${LIBS}
+
+dsm: ${ARBITER_FILES} ${DSM_FILES}
+	${CC} ${CFLAGS} -I ${IDIR} -g ${DSM_FILES} ${ARBITER_FILES} ${LIBS} -lxed
 
 
 # TEST RULES

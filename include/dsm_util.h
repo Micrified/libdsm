@@ -11,6 +11,13 @@
  *******************************************************************************
 */
 
+// State-assertion macro.
+#define ASSERT_STATE(E)         ((E) ? (void)0 : \
+    (dsm_panicf("State Violation (%s:%d): %s", __FILE__, __LINE__, #E)))
+
+// Condition-assertion macro.
+#define ASSERT_COND(E)         ((E) ? (void)0 : \
+    (dsm_panicf("Condition Unmet (%s:%d): %s", __FILE__, __LINE__, #E)))
 
 // Max macro.
 #define MAX(a,b)				((a) > (b) ? (a) : (b))
@@ -41,7 +48,7 @@ void dsm_panic (const char *msg);
 // Exits fatally with given error message. Outputs custom errno.
 void dsm_cpanic (const char *msg, const char *reason);
 
-// Exits fatally with formatted error. Supports tokens: {%s, %d, %f, %u}.
+// Exits fatally with formatted error. Supports tokens: {%s, %d, %f, %u, %p}.
 void dsm_panicf (const char *fmt, ...);
 
 // Outputs warning to stderr.

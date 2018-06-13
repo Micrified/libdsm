@@ -33,13 +33,14 @@ void dsm_cpanic (const char *msg, const char *reason) {
 	exit(EXIT_FAILURE);
 }
 
-// Exits fatally with formatted error. Supports tokens: {%s, %d, %f, %u}.
+// Exits fatally with formatted error. Supports tokens: {%s, %d, %f, %u, %p}.
 void dsm_panicf (const char *fmt, ...) {
 	va_list ap;
 	const char *p, *sval;
 	int ival;
 	unsigned int uval;
 	double dval;
+	void *pval;
 
 	// Print error start.
 	fprintf(stderr, "[%d] Fatal Error: \"", getpid());
@@ -65,6 +66,11 @@ void dsm_panicf (const char *fmt, ...) {
 			case 'f': {
 				dval = va_arg(ap, double);
 				fprintf(stderr, "%f", dval);
+				break;
+			}
+			case 'p': {
+				pval = va_arg(ap, void *);
+				fprintf(stderr, "%p", pval);
 				break;
 			}
 			case 's': {

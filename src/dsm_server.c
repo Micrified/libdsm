@@ -25,14 +25,6 @@
 */
 
 
-// State-assertion macro.
-#define ASSERT_STATE(E)         ((E) ? (void)0 : \
-    (dsm_panicf("State Violation (%d:%d): %s", __FILE__, __LINE__, #E)))
-
-// Condition-assertion macro.
-#define ASSERT_COND(E)         ((E) ? (void)0 : \
-    (dsm_panicf("Condition Unmet (%d:%d): %s", __FILE__, __LINE__, #E)))
-
 // Default listener socket backlog
 #define DSM_DEF_BACKLOG			32
 
@@ -86,6 +78,7 @@ int g_sock_listen;
  *                          Message Wrapper Functions                          *
  *******************************************************************************
 */
+
 
 // Sends a message to target file-descriptor. Performs packing task.
 static void send_msg (int fd, dsm_msg *mp) {

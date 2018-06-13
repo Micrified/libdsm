@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/mman.h>
+#include <semaphore.h>
 
 #include "dsm_arbiter.h"
 #include "dsm_util.h"
@@ -18,13 +19,6 @@
  *******************************************************************************
 */
 
-// State-assertion macro.
-#define ASSERT_STATE(E)         ((E) ? (void)0 : \
-    (dsm_panicf("State Violation (%d:%d): %s", __FILE__, __LINE__, #E)))
-
-// Condition-assertion macro.
-#define ASSERT_COND(E)         ((E) ? (void)0 : \
-    (dsm_panicf("Condition Unmet (%d:%d): %s", __FILE__, __LINE__, #E)))
 
 // Default listener socket backlog
 #define DSM_DEF_BACKLOG			32
@@ -62,10 +56,10 @@ int g_sock_listen;
 int g_sock_server;
 
 // [EXTERN] Initialization semaphore. 
-//extern sem_t *sem_start;
+extern sem_t *g_sem_start;
 
-// [EXTERN] Shared memory map.
-//extern dsm_smap *smap;
+// [EXTERN] Pointer to the shared (and protected) memory map.
+extern void *g_shared_map;
 
 
 /*
@@ -109,7 +103,7 @@ static void send_easy_msg (int fd, dsm_msg_t type) {
 static void send_task_msg (int fd, dsm_msg_t type) {
     dsm_msg msg = {.type = type};
     msg.task.nproc = g_proc_tab->nproc;
-    send_msg(fd, *msg);
+    send_msg(fd, &msg);
 } 
 
 /*
@@ -118,12 +112,11 @@ static void send_task_msg (int fd, dsm_msg_t type) {
  *******************************************************************************
 */
 
+// Forward declaration of signalProcess.
+static void signalProcess (int fd, int signal);
 
 // Sets stopped bit on process. Signals if not blocked, stopped, or queued.
 static void map_stp_all (int fd, dsm_proc *proc_p) {
-
-    // Forward declaration of signalProcess.
-    void signalProcess (int fd, int signal);
 
     // If not stopped, blocked, or queued, then signal.
     if (proc_p->flags.is_stopped == 0 && proc_p->flags.is_blocked == 0
@@ -132,14 +125,11 @@ static void map_stp_all (int fd, dsm_proc *proc_p) {
     }
 
     // Set stopped bit.
-    proc_p->is_stopped = 1;
+    proc_p->flags.is_stopped = 1;
 }
 
 // Unsets stopped bit on process. Signals if not blocked or queued.
 static void map_cnt_all (int fd, dsm_proc *proc_p) {
-    
-    // Forward declaration of signalProcess.
-    void signalProcess (int fd, int signal);
 
     // Unset stopped bit.
     proc_p->flags.is_stopped = 0;
@@ -172,6 +162,7 @@ static void map_rel_bar (int fd, dsm_proc *proc_p) {
 
 // DSM_MSG_STP_ALL: Stop all processes instruction.
 static void handler_stp_all (int fd, dsm_msg *mp) {
+    UNUSED(mp);
 
     // Verify state + sender.
     ASSERT_STATE(g_started == 1 && fd == g_sock_server);
@@ -185,13 +176,17 @@ static void handler_stp_all (int fd, dsm_msg *mp) {
 
 // DSM_MSG_CNT_ALL: Resume all processes instruction.
 static void handler_cnt_all (int fd, dsm_msg *mp) {
+    UNUSED(mp);
 
     // Verify sender.
     ASSERT_COND(fd == g_sock_server);
 
-    // If not started: Set started.
+
+    // Otherwise, set as started. Destroy shared files. 
     if (g_started == 0) {
         g_started = 1;
+        dsm_unlinkSharedFile(DSM_SHM_FILE_NAME);
+        dsm_unlinkNamedSem(DSM_SEM_INIT_NAME);
     }
 
     // For all processes: Unset stopped bit. Signal if not blocked.
@@ -200,6 +195,7 @@ static void handler_cnt_all (int fd, dsm_msg *mp) {
 
 // DSM_MSG_REL_BAR: Release processes waiting at barrier.
 static void handler_rel_bar (int fd, dsm_msg *mp) {
+    UNUSED(mp);
 
     // Verify state + sender.
     ASSERT_STATE(g_started == 1 && fd == g_sock_server);
@@ -329,15 +325,15 @@ static void handler_post_sem (int fd, dsm_msg *mp) {
     ASSERT_STATE(g_started == 1);
 
     // If from server: Find and unblock process.
-    if (fd = g_sock_server) {
+    if (fd == g_sock_server) {
         ASSERT_COND((proc_p = dsm_findProcessTableEntry(g_proc_tab, pid,
             &proc_fd)));
 
         // Ensure process was blocked: Could verify semaphore name but costly.
-        ASSERT_COND(proc_p->is_blocked == 1);
+        ASSERT_COND(proc_p->flags.is_blocked == 1);
         
         // Unset blocked bit.
-        proc_p->is_blocked = 0;
+        proc_p->flags.is_blocked = 0;
 
         // Forward message to process.
         send_msg(proc_fd, mp);
@@ -363,12 +359,16 @@ static void handler_wait_sem (int fd, dsm_msg *mp) {
     // Verify process exists.
     ASSERT_COND((proc_p = dsm_getProcessTableEntry(g_proc_tab, fd, pid)) != NULL);
 
+    // Set blocked bit.
+    proc_p->flags.is_blocked = 1;
+
     // Forward message to server.
     send_msg(g_sock_server, mp);
 }
 
 // DSM_MSG_EXIT: Process exiting.
 static void handler_exit (int fd, dsm_msg *mp) {
+    UNUSED(mp);
 
     // Verify state + sender.
     ASSERT_STATE(g_started == 1 && fd != g_sock_server);
@@ -403,6 +403,7 @@ static void signalProcess (int fd, int signal) {
 // Contacts daemon with sid, sets session details. Exits fatally on error.
 static int getServerSocket (dsm_cfg *cfg) {
     char abuf[INET6_ADDRSTRLEN], pbuf[6];
+    UNUSED(cfg);
 
     // Get server address.
     printf("Server Address: "); scanf("%s", abuf);
@@ -467,6 +468,7 @@ static void handle_new_message (int fd) {
 */
 
 
+// Runs the arbiter main loop. Exits on success.
 void dsm_arbiter (dsm_cfg *cfg) {
     int new = 0;                // Newly active connections (for poll syscall).
     struct pollfd *pfd = NULL;  // Pointer to a struct pollfd instance.
@@ -510,6 +512,13 @@ void dsm_arbiter (dsm_cfg *cfg) {
     // Register server socket as pollable at index one.
     dsm_setPollable(g_sock_server, POLLIN, g_pollSet);
 
+    // Release any waiting processes.
+    for (unsigned int i = 0; i < cfg->nproc; i++) {
+        dsm_up(g_sem_start);
+    }
+
+    printf("Ready...\n");
+
     // ------------------------------------------------------------------------
 
     // Keep polling as long as no errors occur, or alive flag not false.
@@ -526,6 +535,11 @@ void dsm_arbiter (dsm_cfg *cfg) {
             } else {
                 handle_new_message(pfd->fd);
             }
+
+            printf("State Update:\n");
+            dsm_showPollable(g_pollSet);
+            dsm_showProcessTable(g_proc_tab);
+            printf("\n\n");
         }
     }
 
@@ -550,13 +564,4 @@ void dsm_arbiter (dsm_cfg *cfg) {
 
     // Exit.
     exit(EXIT_SUCCESS);
-}
-
-int main (void) {
-    dsm_cfg cfg = {.nproc = 2};
-
-    // Initialize the arbiter.
-    dsm_arbiter(&cfg);
-
-    return 0;
 }

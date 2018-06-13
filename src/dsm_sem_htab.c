@@ -78,7 +78,7 @@ dsm_sem_t *dsm_setSemHashTableEntry (dsm_sem_htab *htab, char *sem_name) {
 
     // Configure.
     sem->sem_id = dsm_setStringTableEntry(g_str_tab, sem_name);
-    sem->value = 0;
+    sem->value = 1;
 
     return dsm_setHashTableEntry(htab, sem_name, sem);
 }

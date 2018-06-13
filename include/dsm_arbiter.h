@@ -36,5 +36,8 @@ typedef struct dsm_cfg {
 */
 
 
+// Runs the arbiter main loop. Exits on success.
+void dsm_arbiter (dsm_cfg *cfg);
+
 
 #endif
