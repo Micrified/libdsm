@@ -2,7 +2,6 @@
 #define DSM_SYNC_H
 
 #include <signal.h>
-#include "dsm_types.h"
 
 
 /*
