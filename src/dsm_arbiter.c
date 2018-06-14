@@ -483,7 +483,7 @@ static void handle_new_message (int fd) {
     }
 
     //printf("[%d] New Message!\n", getpid());
-    //dsm_showMsg(&msg);
+    dsm_showMsg(&msg);
 
     // Get handler. Abort if none set.
     if ((handler = dsm_getMsgFunc(msg.type, g_fmap)) == NULL) {
