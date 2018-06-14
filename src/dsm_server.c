@@ -278,7 +278,7 @@ static void handler_hit_bar (int fd, dsm_msg *mp) {
 
     // If all processes have reached barrier: Release and reset.
     if ((g_proc_tab->nblocked += 1) >= g_nproc) {
-        printf("[%d] Releasing barrier!\n", getpid());
+        //printf("[%d] Releasing barrier!\n", getpid());
 
         // Inform blocked processes.
         send_easy_msg(-1, DSM_MSG_REL_BAR);
@@ -344,7 +344,7 @@ static void handler_post_sem (int fd, dsm_msg *mp) {
 // DSM_MSG_WAIT_SEM: Process is waiting on a semaphore.
 static void handler_wait_sem (int fd, dsm_msg *mp) {
     char *sem_name = mp->sem.sem_name;
-    dsm_sem_t *sem;
+    dsm_sem_t *sem = NULL;
     dsm_proc *proc_p = dsm_getProcessTableEntry(g_proc_tab, fd, mp->sem.pid);
 
     // Verify state.
@@ -358,6 +358,9 @@ static void handler_wait_sem (int fd, dsm_msg *mp) {
         sem = dsm_setSemHashTableEntry(g_sem_htab, sem_name);
         //printf("[%d] DSM_MSG_WAIT_SEM: Created \"%s\"\n", getpid(), sem_name);
     }
+
+    // Verify semaphore was created.
+    ASSERT_COND(sem != NULL);
 
     // If sem value > 0 : Send unblock and decrement. Else log sem under pid.
     if (sem->value > 0) {
@@ -429,8 +432,8 @@ static void handle_new_message (int fd) {
         dsm_unpack_msg(&msg, buf);
     }
 
-    printf("[%d] New Message!\n", getpid());
-    dsm_showMsg(&msg);
+    //printf("[%d] New Message!\n", getpid());
+    //dsm_showMsg(&msg);
 
     // Get handler. Abort if none set.
     if ((handler = dsm_getMsgFunc(msg.type, g_fmap)) == NULL) {
@@ -522,12 +525,12 @@ int main (int argc, const char *argv[]) {
                 handle_new_message(pfd->fd);
             }
         }
-        printf("[%d] State Update\n", getpid());
-        dsm_showPollable(g_pollSet);
-        dsm_showOpQueue(g_opqueue);
-        dsm_showStringTable(g_str_tab);
-        dsm_showProcessTable(g_proc_tab);
-        printf("\n\n");
+        //printf("[%d] State Update\n", getpid());
+        //dsm_showPollable(g_pollSet);
+        //dsm_showOpQueue(g_opqueue);
+        //dsm_showStringTable(g_str_tab);
+        //dsm_showProcessTable(g_proc_tab);
+        //printf("\n\n");
     }
 
     // ------------------------------------------------------------------------

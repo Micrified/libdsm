@@ -41,7 +41,7 @@ dsm_htab *dsm_initHashTable (
 	void (*func_show)(void *),
 	int (*func_comp)(void *, void *));
 
-// Registers data in table. Returns pointer. Exits fatally on error.
+// Registers data in table. Returns pointer to data. Exits fatally on error.
 void *dsm_setHashTableEntry (dsm_htab *htab, void *key, void *data);
 
 // Retrieves data from table. Returns pointer or NULL if no entry found.

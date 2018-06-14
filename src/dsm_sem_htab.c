@@ -16,7 +16,7 @@
 
 
 // [EXTERN] Reference to the user's string table.
-dsm_stab *g_str_tab;
+extern dsm_stab *g_str_tab;
 
 
 /*

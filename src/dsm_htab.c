@@ -121,9 +121,9 @@ dsm_htab *dsm_initHashTable (
 	return htab;
 }
 
-// Registers data in table. Returns pointer. Exits fatally on error.
+// Registers data in table. Returns pointer to data. Exits fatally on error.
 void *dsm_setHashTableEntry (dsm_htab *htab, void *key, void *data) {
-	dsm_htab_entry *entry;
+	dsm_htab_entry *entry = NULL;
 
 	// Compute hash.
 	int hash = htab->func_hash(key) % htab->length;
@@ -145,7 +145,8 @@ void *dsm_setHashTableEntry (dsm_htab *htab, void *key, void *data) {
 	};
 	
 	// Insert at head of list. Return data attribute.
-	return (htab->tab[hash] = entry)->data;
+	htab->tab[hash] = entry;
+	return entry->data;
 }
 
 // Retrieves data from table. Returns pointer or NULL if no entry found.
@@ -153,6 +154,9 @@ void *dsm_getHashTableEntry (dsm_htab *htab, void *key) {
 
 	// Compute hash.
 	int hash = htab->func_hash(key) % htab->length;
+
+	// Verify arguments.
+	ASSERT_COND(htab != NULL && htab->func_comp != NULL);
 
 	// Search for entry.
 	return getHashTableEntry(htab->tab[hash], key, htab->func_comp);
@@ -173,6 +177,7 @@ void dsm_remHashTableEntry (dsm_htab *htab, void *key) {
 void dsm_flushHashTable (dsm_htab *htab) {
 	for (int i = 0; i < htab->length; i++) {
 		freeHashTableEntry(htab->tab[i], htab->func_free);
+		htab->tab[i] = NULL;
 	}
 }
 
