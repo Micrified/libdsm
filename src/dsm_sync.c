@@ -162,7 +162,7 @@ void dsm_sync_sigsegv (int signal, siginfo_t *info, void *ucontext) {
 	xed_uint_t len;
 	UNUSED(signal);
 
-	printf("[%d] SIGSEGV (%p)!\n", getpid(), info->si_addr);
+	//printf("[%d] SIGSEGV (%p)!\n", getpid(), info->si_addr);
 
 	// Set fault address.
 	g_fault_addr = info->si_addr;
@@ -204,7 +204,7 @@ void dsm_sync_sigill (int signal, siginfo_t *info, void *ucontext) {
 	UNUSED(signal);
 	UNUSED(info);
 
-	printf("SIGILL!\n"); fflush(stdout);
+	//printf("SIGILL!\n"); fflush(stdout);
 
 	// Restore origin instruction.
 	memcpy(prgm_counter, g_inst_buf, UD2_SIZE);

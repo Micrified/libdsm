@@ -22,15 +22,6 @@
  *******************************************************************************
 */
 
-
-// State-assertion macro.
-#define ASSERT_STATE(E)         ((E) ? (void)0 : \
-    (dsm_panicf("State Violation (%s:%d): %s", __FILE__, __LINE__, #E)))
-
-// Condition-assertion macro.
-#define ASSERT_COND(E)         ((E) ? (void)0 : \
-    (dsm_panicf("Condition Unmet (%s:%d): %s", __FILE__, __LINE__, #E)))
-
 // The name of the shared initialization semaphore.
 #define DSM_SEM_INIT_NAME			"dsm_start"
 
@@ -280,11 +271,12 @@ void *dsm_init (dsm_cfg *cfg) {
 
     // If first: Fork arbiter.
     if (first && fork() == 0) {
-        printf("[%d] Arbiter launching...\n", getpid());
+        //printf("[%d] Arbiter launching...\n", getpid());
+        //dsm_redirXterm();
         dsm_arbiter(cfg);
     }
-    dsm_redirXterm();
-    printf("[%d] Waiting to begin...\n", getpid());
+    
+    //printf("[%d] Waiting to begin...\n", getpid());
 
     // Wait on initialization semaphore for release by arbiter.
     dsm_down(g_sem_start);
@@ -307,23 +299,23 @@ void *dsm_init (dsm_cfg *cfg) {
 
     // Block until start signal (set_gid) is received.
     g_gid = recv_set_gid();
-    printf("[%d] I got gid: %d\n", getpid(), dsm_getgid());
+    //printf("[%d] I got gid: %d\n", getpid(), dsm_getgid());
 
     // Return shared map pointer.
-    printf("[%d] Starting...!\n", getpid());
+    //printf("[%d] Starting...!\n", getpid());
     return g_shared_map;
 }
 
 // Initializes the shared memory system with default configuration.
 // Returns a pointer to the shared map.
-void *dsm_init2 (unsigned int nproc, size_t map_size) {
+void *dsm_init2 (const char *sid, unsigned int nproc, size_t map_size) {
 
     // Default configuration.
     dsm_cfg cfg = {
         .nproc = nproc,
-        .sid = "Tulip",
+        .sid = sid,
         .d_addr = "127.0.0.1",
-        .d_port = "4800",
+        .d_port = "4200",
         .map_size = map_size
     };
 
@@ -342,12 +334,12 @@ void dsm_barrier (void) {
 }
 
 // Posts (up's) on the named semaphore. Semaphore is created if needed.
-void dsm_post (const char *sem_name) {
+void dsm_post_sem (const char *sem_name) {
     send_sem_msg(DSM_MSG_POST_SEM, sem_name);
 }
 
 // Waits (down's) on the named semaphore. Semaphore is created if needed.
-void dsm_wait (const char *sem_name) {
+void dsm_wait_sem (const char *sem_name) {
     send_sem_msg(DSM_MSG_WAIT_SEM, sem_name);
     recv_post_sem(sem_name);
 }
@@ -382,34 +374,4 @@ void dsm_exit (void) {
     // Reset signal handlers.
     dsm_sigdefault(SIGSEGV);
     dsm_sigdefault(SIGILL);
-}
-
-int main (void) {
-
-    // Fork.
-    fork(); printf("[%d] Starting...\n", getpid());
-
-    // Get the shared map.
-    void *map = dsm_init2(2, DSM_PAGESIZE * 2);
-    printf("[%d] map: %p -> %p\n", getpid(), map, (void *)((uintptr_t)map + DSM_PAGESIZE * 2));
-    // Cast shared integer.
-    int *turn = (int *)map;
-
-    // Ping pong.
-    for (int i = 0; i < 5; i++) {
-        while (*turn != dsm_getgid());
-        if (dsm_getgid() == 0) {
-            printf("Ping! ...\n");
-        } else {
-            printf("... Pong!\n");
-        }
-        sleep(1);
-        *turn = 1 - *turn;
-    }
-
-    // Call de-initializer.
-    dsm_exit();
-
-
-    return 0;
 }

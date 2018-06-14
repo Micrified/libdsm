@@ -331,7 +331,7 @@ static void handler_wrt_data (int fd, dsm_msg *mp) {
     // If it's coming from a local process, forward to server.
     if (fd != g_sock_server) {
         send_msg(g_sock_server, mp);
-        return;
+
     } else {
 
         // Otherwise synchronize the shared memory.
@@ -438,12 +438,15 @@ static int getServerSocket (dsm_cfg *cfg) {
     UNUSED(cfg);
 
     // Get server address.
-    printf("Server Address: "); scanf("%s", abuf);
+    //printf("Server Address: "); scanf("%s", abuf);
     abuf[INET6_ADDRSTRLEN - 1] = '\0';
 
+    snprintf(abuf, INET6_ADDRSTRLEN, "%s", cfg->d_addr);
+    snprintf(pbuf, 6, "%s", cfg->d_port);
+
     // Get port.
-    printf("Server Port: "); scanf("%s", pbuf);
-    pbuf[5] = '\0';
+    //printf("Server Port: "); scanf("%s", pbuf);
+    //pbuf[5] = '\0';
 
     // Connect.
     return dsm_getConnectedSocket(abuf, pbuf);
@@ -479,8 +482,8 @@ static void handle_new_message (int fd) {
         dsm_unpack_msg(&msg, buf);
     }
 
-    printf("[%d] New Message!\n", getpid());
-    dsm_showMsg(&msg);
+    //printf("[%d] New Message!\n", getpid());
+    //dsm_showMsg(&msg);
 
     // Get handler. Abort if none set.
     if ((handler = dsm_getMsgFunc(msg.type, g_fmap)) == NULL) {
@@ -549,8 +552,6 @@ void dsm_arbiter (dsm_cfg *cfg) {
         dsm_up(g_sem_start);
     }
 
-    printf("Ready...\n");
-
     // ------------------------------------------------------------------------
 
     // Keep polling as long as no errors occur, or alive flag not false.
@@ -568,10 +569,10 @@ void dsm_arbiter (dsm_cfg *cfg) {
                 handle_new_message(pfd->fd);
             }
 
-            printf("State Update:\n");
-            dsm_showPollable(g_pollSet);
-            dsm_showProcessTable(g_proc_tab);
-            printf("\n\n");
+            //printf("State Update:\n");
+            //dsm_showPollable(g_pollSet);
+            //dsm_showProcessTable(g_proc_tab);
+            //printf("\n\n");
         }
     }
 

@@ -17,7 +17,7 @@ void *dsm_init (dsm_cfg *cfg);
 
 // Initializes the shared memory system with default configuration.
 // Returns a pointer to the shared map.
-void *dsm_init2 (unsigned int nproc, size_t map_size);
+void *dsm_init2 (const char *sid, unsigned int nproc, size_t map_size);
 
 // Returns the global process identifier (GID) to the caller.
 int dsm_getgid (void);
@@ -26,10 +26,10 @@ int dsm_getgid (void);
 void dsm_barrier (void);
 
 // Posts (up's) on the named semaphore. Semaphore is created if needed.
-void dsm_post (const char *sem_name);
+void dsm_post_sem (const char *sem_name);
 
 // Waits (down's) on the named semaphore. Semaphore is created if needed.
-void dsm_wait (const char *sem_name);
+void dsm_wait_sem (const char *sem_name);
 
 // Disconnects from shared memory system. Unmaps shared memory.
 void dsm_exit (void);
