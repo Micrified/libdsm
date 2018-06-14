@@ -91,7 +91,7 @@ static void *freeHashTableEntry (dsm_htab_entry *entry,
 // Initializes the hash table. Returns pointer. Exits fatally on error.
 dsm_htab *dsm_initHashTable (
 	int length,
-	int (*func_hash)(void *),
+	unsigned int (*func_hash)(void *),
 	void (*func_free)(void *),
 	void (*func_show)(void *),
 	int (*func_comp)(void *, void *)) {
@@ -126,7 +126,7 @@ void *dsm_setHashTableEntry (dsm_htab *htab, void *key, void *data) {
 	dsm_htab_entry *entry = NULL;
 
 	// Compute hash.
-	int hash = htab->func_hash(key) % htab->length;
+	unsigned int hash = htab->func_hash(key) % htab->length;
 
 	// Verify entry doesn't already exist.
 	if ((entry = dsm_getHashTableEntry(htab, key)) != NULL) {
@@ -153,7 +153,7 @@ void *dsm_setHashTableEntry (dsm_htab *htab, void *key, void *data) {
 void *dsm_getHashTableEntry (dsm_htab *htab, void *key) {
 
 	// Compute hash.
-	int hash = htab->func_hash(key) % htab->length;
+	unsigned int hash = htab->func_hash(key) % htab->length;
 
 	// Verify arguments.
 	ASSERT_COND(htab != NULL && htab->func_comp != NULL);
@@ -166,7 +166,7 @@ void *dsm_getHashTableEntry (dsm_htab *htab, void *key) {
 void dsm_remHashTableEntry (dsm_htab *htab, void *key) {
 
 	// Compute hash.
-	int hash = htab->func_hash(key) % htab->length;
+	unsigned int hash = htab->func_hash(key) % htab->length;
 
 	// Reset list without entry.
 	htab->tab[hash] = remHashTableEntry(htab->tab[hash], key, htab->func_comp,

@@ -17,7 +17,7 @@ typedef struct dsm_htab_entry {
 
 // Type describing a generic hash-table.
 typedef struct dsm_htab {
-	int (*func_hash)(void *);				// Hashing function for key.
+	unsigned int (*func_hash)(void *);		// Hashing function for key.
 	void (*func_free)(void *);				// Data freeing function.
 	void (*func_show)(void *);				// Data printing function.
 	int (*func_comp)(void *, void *);		// Data comparison function.
@@ -36,7 +36,7 @@ typedef struct dsm_htab {
 // Initializes the hash table. Returns pointer. Exits fatally on error.
 dsm_htab *dsm_initHashTable (
 	int length,
-	int (*func_hash)(void *),
+	unsigned int (*func_hash)(void *),
 	void (*func_free)(void *),
 	void (*func_show)(void *),
 	int (*func_comp)(void *, void *));

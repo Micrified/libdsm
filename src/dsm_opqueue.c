@@ -15,7 +15,7 @@
 
 
 // Allocates and initializes an operation-queue.
-dsm_opqueue *dsm_initOpQueue (size_t queueSize) {
+dsm_opqueue *dsm_initOpQueue (unsigned int length) {
 	dsm_opqueue *oq;
 
 	// Allocate opqueue.
@@ -24,13 +24,13 @@ dsm_opqueue *dsm_initOpQueue (size_t queueSize) {
 	}
 
 	// Set queue itself.
-	if ((oq->queue = malloc(queueSize * sizeof(uint64_t))) == NULL) {
+	if ((oq->queue = malloc(length * sizeof(uint64_t))) == NULL) {
 		dsm_cpanic("dsm_initOpQueue failed!", "Allocation error");
 	}
 
 	// Set remaining fields.
 	oq->step = STEP_READY;
-	oq->queueSize = queueSize;
+	oq->length = length;
 	oq->head = oq->tail = 0;
 
 	return oq;
@@ -60,24 +60,24 @@ uint64_t dsm_getOpQueueHead (dsm_opqueue *oq) {
 
 // Enqueues {machine + process} in operation-queue for write.
 void dsm_enqueueOpQueue (uint32_t fd, uint32_t pid, dsm_opqueue *oq) {
-	size_t new_queueSize;
+	unsigned int new_length;
 	unsigned int i, j;
 	uint64_t *new_queue;
 
 	// Resize queue if full.
-	if ((oq->head + 1) % oq->queueSize == oq->tail) {
+	if ((oq->head + 1) % oq->length == oq->tail) {
 
 		// Double queue size.
-		new_queueSize = 2 * oq->queueSize;
+		new_length = 2 * oq->length;
 
 		// Allocate the new queue.
-		if ((new_queue = malloc(new_queueSize * sizeof(uint64_t))) == NULL) {
+		if ((new_queue = malloc(new_length * sizeof(uint64_t))) == NULL) {
 			dsm_cpanic("dsm_enqueueOpQueue", "Couldn't resize queue");
 		}
 
 		// Copy over the data.
 		for (i = oq->tail, j = 0; i != oq->head; 
-			i = (i + 1) % oq->queueSize, j++) {
+			i = (i + 1) % oq->length, j++) {
 			new_queue[j] = oq->queue[i];
 		}
 
@@ -86,7 +86,7 @@ void dsm_enqueueOpQueue (uint32_t fd, uint32_t pid, dsm_opqueue *oq) {
 		oq->queue = new_queue;
 
 		// Set the size, new head and tail.
-		oq->queueSize = new_queueSize;
+		oq->length = new_length;
 		oq->head = j;
 		oq->tail = 0;
 	}
@@ -97,7 +97,7 @@ void dsm_enqueueOpQueue (uint32_t fd, uint32_t pid, dsm_opqueue *oq) {
 
 	// Enroll item.
 	oq->queue[oq->head] = (long_fd | (long_pid << 32));
-	oq->head = (oq->head + 1) % oq->queueSize;
+	oq->head = (oq->head + 1) % oq->length;
 }
 
 // Dequeues file-descriptor from operation queue. Panics on error.
@@ -111,7 +111,7 @@ uint64_t dsm_dequeueOpQueue (dsm_opqueue *oq) {
 
 	// Extract value, move tail up, then return value.
 	val = oq->queue[oq->tail];
-	oq->tail = (oq->tail + 1) % oq->queueSize;
+	oq->tail = (oq->tail + 1) % oq->length;
 	return val;
 }
 
@@ -119,7 +119,7 @@ uint64_t dsm_dequeueOpQueue (dsm_opqueue *oq) {
 void dsm_showOpQueue (dsm_opqueue *oq) {
 	printf("Operation Step = %d\n", oq->step);
 	printf("Operation Queue = [");
-	for (unsigned i = oq->tail; i != oq->head; i = (i + 1) % oq->queueSize) {
+	for (unsigned i = oq->tail; i != oq->head; i = (i + 1) % oq->length) {
 		uint64_t v = oq->queue[i];
 		printf("{%" PRIu32 ": %" PRIu32 "}", DSM_MASK_FD(v), DSM_MASK_PID(v));
 		if (i < (oq->head - 1)) {
