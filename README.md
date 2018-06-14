@@ -30,6 +30,8 @@ A makefile is provided to facilitate installation. The following instructions wi
 
 **Note: If things don't seem to work anymore, execute**: `make clean`!
 
+(Or alternatively, delete `/dev/shm/dsm_file` and `/dev/shm/sem.dsm_start`)
+
 
 All programs must be compiled with the following linked libraries (in order):
 
@@ -41,7 +43,7 @@ In order to run anything, the session-server must be started. It is located in
 `/bin/dsm_server` if you ran `make server`. It currently takes a port and the number
 of processes to expect.
 ---
-./bin/dsm_server <port> <nproc>
+`./bin/dsm_server <port> <nproc>`
 ---
 
 The server dies every time the session ends. So you'll have to restart it each time you want to run your session again. See the examples folder for how you can instruct the client to connect to the server. Don't worry, the daemon will be in shortly!
