@@ -4,6 +4,8 @@
 #include <unistd.h>
 #include "dsm/dsm.h"
 
+/* Make then run the server with: "./bin/dsm_server 4200 4" */
+
 // Configuration struct: dsm_arbiter.h
 dsm_cfg cfg = {
     .nproc = 4,             // Total number of expected processes.
