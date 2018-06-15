@@ -204,6 +204,11 @@ void dsm_sync_sigill (int signal, siginfo_t *info, void *ucontext) {
 	UNUSED(signal);
 	UNUSED(info);
 
+	// Verify fault address is set. If not, abort.
+	if (g_fault_addr == NULL) {
+		dsm_panicf("Illegal Instruction (SIGILL). Aborting!");
+	}
+
 	//printf("SIGILL!\n"); fflush(stdout);
 
 	// Restore origin instruction.
@@ -214,4 +219,7 @@ void dsm_sync_sigill (int signal, siginfo_t *info, void *ucontext) {
 
 	// Release lock and send sychronization information.
 	dropAccess();
+
+	// Unset fault address.
+	g_fault_addr = NULL;
 }
