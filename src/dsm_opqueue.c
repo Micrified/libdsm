@@ -15,7 +15,7 @@
 
 
 // Allocates and initializes an operation-queue.
-dsm_opqueue *dsm_initOpQueue (unsigned int length) {
+dsm_opqueue *dsm_initOpQueue (size_t length) {
 	dsm_opqueue *oq;
 
 	// Allocate opqueue.
@@ -60,7 +60,7 @@ uint64_t dsm_getOpQueueHead (dsm_opqueue *oq) {
 
 // Enqueues {machine + process} in operation-queue for write.
 void dsm_enqueueOpQueue (uint32_t fd, uint32_t pid, dsm_opqueue *oq) {
-	unsigned int new_length;
+	size_t new_length;
 	unsigned int i, j;
 	uint64_t *new_queue;
 

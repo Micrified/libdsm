@@ -14,7 +14,7 @@
 
 
 // Initializes and returns empty pollset. Exits fatally on error.
-pollset *dsm_initPollSet (unsigned int len) {
+pollset *dsm_initPollSet (size_t length) {
 	pollset *p;
 
 	// Allocate set.
@@ -23,13 +23,13 @@ pollset *dsm_initPollSet (unsigned int len) {
 	}
 
 	// Allocate file-descriptor list.
-	if ((p->fds = malloc(len * sizeof(struct pollfd))) == NULL) {
+	if ((p->fds = malloc(length * sizeof(struct pollfd))) == NULL) {
 		dsm_cpanic("Couldn't allocate pollset!", "malloc failed");
 	}
 
 	// Setup remaining fields and return.
 	p->fp = 0;
-	p->len = len;
+	p->length = length;
 
 	return p;
 }
@@ -60,9 +60,9 @@ void dsm_setPollable (int fd, short events, pollset *p) {
 	}
 
 	// Check if room exists. Expand set if necessary.
-	if (p->fp >= p->len) {
-		p->len *= 2;
-		if ((p->fds = realloc(p->fds, p->len)) == NULL) {
+	if (p->fp >= p->length) {
+		p->length *= 2;
+		if ((p->fds = realloc(p->fds, p->length)) == NULL) {
 			dsm_cpanic("Couldn't realloc pollset!", "Unknown");
 		}
 	}

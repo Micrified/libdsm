@@ -21,8 +21,8 @@ typedef struct dsm_htab {
 	void (*func_free)(void *);				// Data freeing function.
 	void (*func_show)(void *);				// Data printing function.
 	int (*func_comp)(void *, void *);		// Data comparison function.
-	dsm_htab_entry **tab;					// Hash-table pointer.
-	int length;								// Hash-table bucket count.
+	dsm_htab_entry **tab;					// Hash-table p Putointer.
+	size_t length;							// Hash-table bucket count.
 } dsm_htab;
 
 
@@ -35,7 +35,7 @@ typedef struct dsm_htab {
 
 // Initializes the hash table. Returns pointer. Exits fatally on error.
 dsm_htab *dsm_initHashTable (
-	int length,
+	size_t length,
 	unsigned int (*func_hash)(void *),
 	void (*func_free)(void *),
 	void (*func_show)(void *),

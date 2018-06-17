@@ -90,7 +90,7 @@ static void *freeHashTableEntry (dsm_htab_entry *entry,
 
 // Initializes the hash table. Returns pointer. Exits fatally on error.
 dsm_htab *dsm_initHashTable (
-	int length,
+	size_t length,
 	unsigned int (*func_hash)(void *),
 	void (*func_free)(void *),
 	void (*func_show)(void *),
@@ -175,7 +175,7 @@ void dsm_remHashTableEntry (dsm_htab *htab, void *key) {
 
 // Flushes hash table.
 void dsm_flushHashTable (dsm_htab *htab) {
-	for (int i = 0; i < htab->length; i++) {
+	for (unsigned int i = 0; i < htab->length; i++) {
 		freeHashTableEntry(htab->tab[i], htab->func_free);
 		htab->tab[i] = NULL;
 	}
@@ -183,7 +183,7 @@ void dsm_flushHashTable (dsm_htab *htab) {
 
 // Prints hash table.
 void dsm_showHashTable (dsm_htab *htab) {
-	for (int i = 0; i < htab->length; i++) {
+	for (unsigned int i = 0; i < htab->length; i++) {
 		printf("%d: ", i);
 		showHashTableEntry(htab->tab[i], htab->func_show);
 	}

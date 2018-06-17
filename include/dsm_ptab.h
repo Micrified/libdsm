@@ -47,7 +47,7 @@ typedef struct dsm_proc_node {
 // Type describing a simple process table.
 typedef struct dsm_ptab {
     unsigned int next_gid;          // Next available global identifier.
-    unsigned int size;              // The number of linked-lists.
+    size_t length;					// The number of linked lists
     unsigned int nproc;             // Number of logged processes.
 	unsigned int nstopped;			// The number of stopped processes.
 	unsigned int nblocked;			// The number of blocked processes.
@@ -64,7 +64,7 @@ typedef struct dsm_ptab {
 
 
 // Allocates and initializes a new process table. Exits fatally on error.
-dsm_ptab *dsm_initProcessTable (unsigned int size);
+dsm_ptab *dsm_initProcessTable (size_t length);
 
 // Registers a process for the given file-descriptor (index). Returns pointer.
 dsm_proc *dsm_setProcessTableEntry (dsm_ptab *ptab, int fd, int pid);

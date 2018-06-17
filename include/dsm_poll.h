@@ -13,9 +13,9 @@
 
 // Describes a set of pollable file-descriptors.
 typedef struct pollset {
-	unsigned int fp;		// File-descriptor array pointer.
-	unsigned int len;		// Length of the file-descriptor array (capacity).
-	struct pollfd *fds;		// File-descriptor array.		
+	size_t fp;			// File-descriptor array pointer.
+	size_t length;		// Length of the file-descriptor array (capacity).
+	struct pollfd *fds;	// File-descriptor array.		
 } pollset;
 
 
@@ -27,7 +27,7 @@ typedef struct pollset {
 
 
 // Initializes and returns empty pollset. Exits fatally on error.
-pollset *dsm_initPollSet (unsigned int len);
+pollset *dsm_initPollSet (size_t length);
 
 // Free's given pollset. 
 void dsm_freePollSet (pollset *p);

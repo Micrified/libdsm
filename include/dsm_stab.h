@@ -23,8 +23,8 @@
 
 // Type describing a string-table.
 typedef struct dsm_stab {
-    size_t size;            // String-table size.
-    off_t sp;                 // Pointer to free byte space.
+    size_t size;            // String-table size (in bytes).
+    off_t sp;				// Pointer to free byte space.
     char *tab;              // String-table.
 } dsm_stab;
 

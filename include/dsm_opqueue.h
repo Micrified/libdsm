@@ -38,7 +38,7 @@ typedef enum dsm_syncStep {
 typedef struct dsm_opqueue {
 	dsm_syncStep step;
 	uint64_t *queue;
-	unsigned int length;
+	size_t length;
 	unsigned int head, tail;
 } dsm_opqueue;
 
@@ -51,7 +51,7 @@ typedef struct dsm_opqueue {
 
 
 // Allocates and initializes an operation-queue.
-dsm_opqueue *dsm_initOpQueue (unsigned int length);
+dsm_opqueue *dsm_initOpQueue (size_t length);
 
 // Free's given operation-queue.
 void dsm_freeOpQueue (dsm_opqueue *oq);
