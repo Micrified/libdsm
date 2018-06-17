@@ -147,6 +147,7 @@ static void send_queue_wrt_now_msg (void) {
  *******************************************************************************
 */
 
+
 // DSM_MSG_ALL_STP: Arbiter has stopped all local processes.
 static void handler_all_stp (int fd, dsm_msg *mp) {
     int stopped = mp->task.nproc;
@@ -445,11 +446,13 @@ static void handle_new_message (int fd) {
     }
 }
 
+
 /*
  *******************************************************************************
  *                                    Main                                     *
  *******************************************************************************
 */
+
 
 int main (int argc, const char *argv[]) {
     int nproc = -1;             // Number of expected processes.
@@ -502,7 +505,7 @@ int main (int argc, const char *argv[]) {
 
     // Listen on the socket.
     if (listen(g_sock_listen, DSM_DEF_BACKLOG) == -1) {
-        dsm_panicf("Couldn't listen on socket (%d)!", g_sock_listen);
+        dsm_panicf("Couldn't listen on socket!");
     }
 
     printf("[%d] Ready: ", getpid()); dsm_showSocketInfo(g_sock_listen);

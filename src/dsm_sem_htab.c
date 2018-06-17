@@ -25,6 +25,7 @@ extern dsm_stab *g_str_tab;
  *******************************************************************************
 */
 
+
 // [HTAB]: Hashing routine for the semaphore hash table.
 static unsigned int func_hash (void *key) {
     const char *sem_id = (const char *)key;

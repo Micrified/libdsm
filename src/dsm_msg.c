@@ -271,9 +271,9 @@ static void marshall_payload_none (int dir, dsm_msg *mp, unsigned char *b) {
 static void marshall_payload_sid (int dir, dsm_msg *mp, unsigned char *b) {
 	const char *fmt = "lsl";
 	if (dir == 0) {
-		pack(b, fmt, mp->type, mp->sid.sid, mp->sid.port);
+		pack(b, fmt, mp->type, mp->sid.sid_name, mp->sid.port);
 	} else {
-		unpack(b, fmt, &(mp->type), mp->sid.sid, &(mp->sid.port));
+		unpack(b, fmt, &(mp->type), mp->sid.sid_name, &(mp->sid.port));
 	}
 }
 
@@ -426,7 +426,7 @@ void dsm_showMsg (dsm_msg *mp) {
 		case DSM_MSG_SET_SID:
 			printf("Type: DSM_MSG_SET_SID\n");
 			printf("sid = \"%.*s\"\n", DSM_MSG_STR_SIZE, 
-				mp->sid.sid);
+				mp->sid.sid_name);
 			printf("port = %" PRId32 "\n", mp->sid.port);
 			break;
 
@@ -457,7 +457,7 @@ void dsm_showMsg (dsm_msg *mp) {
 		case DSM_MSG_GET_SID:
 			printf("Type: DSM_MSG_GET_SID\n");
 			printf("sid = \"%.*s\"\n", DSM_MSG_STR_SIZE,
-				mp->sid.sid);
+				mp->sid.sid_name);
 			printf("nproc = %" PRId32 "\n", mp->sid.nproc);
 			break;
 

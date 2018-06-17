@@ -59,7 +59,7 @@ typedef enum {
 
 // For: [DSM_MSG_GET_SID, DSM_MSG_SET_SID, DSM_MSG_DEL_SID].
 typedef struct dsm_payload_sid {
-	char sid[DSM_MSG_STR_SIZE];
+	char sid_name[DSM_MSG_STR_SIZE];
 	union {
 		int32_t port;
 		int32_t nproc;

@@ -2,10 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <inttypes.h>
 
 #include "dsm_msg.h"
 #include "dsm_util.h"
 #include "dsm_inet.h"
+
 
 // Socket connected to the server.
 int sock;
@@ -79,6 +81,22 @@ void send_message (int option) {
             msg.type = DSM_MSG_EXIT;
             break;
         
+        case 10:
+            msg.type = DSM_MSG_GET_SID;
+            printf("sid_name: "); scanf("%s", msg.sid.sid_name);
+            printf("nproc: "); scanf("%" PRId32, &msg.sid.nproc);
+            break;
+
+        case 11:
+            msg.type = DSM_MSG_SET_SID;
+            printf("sid_name: "); scanf("%s", msg.sid.sid_name);
+            printf("port: "); scanf("%" PRId32, &msg.sid.nproc);
+            break;
+
+        case 12:
+            msg.type = DSM_MSG_DEL_SID;
+            printf("sid_name: "); scanf("%s", msg.sid.sid_name);
+            break; 
     }
 
     dsm_pack_msg(&msg, buf);
@@ -110,10 +128,13 @@ int main (int argc, const char *argv[]) {
         printf("7. SEND: DSM_MSG_POST_SEM\n");
         printf("8. SEND: DSM_MSG_WAIT_SEM\n");
         printf("9. SEND: DSM_MSG_EXIT\n");
+        printf("10. SEND: DSM_MSG_GET_SID\n");
+        printf("11. SEND: DSM_MSG_SET_SID\n");
+        printf("12. SEND: DSM_MSG_DEL_SID\n");
         printf("Input: "); scanf("%d", &option);
         if (option == 0) {
             recv_message();
-        } else if (option > 9) {
+        } else if (option > 12) {
             quit = 1;
         } else {
             send_message(option);
