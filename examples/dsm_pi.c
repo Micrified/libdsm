@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/wait.h>
 #include "dsm/dsm.h"
 
 /* Make then run the server with: "./bin/dsm_server 4200 4" */
@@ -28,9 +29,8 @@ int main (int argc, char *argv[]) {
 
     // Each process must call dsm_init at least once. Fork before call.
     for (unsigned int i = 0; i < (cfg.nproc - 1); i++) {
-        if (fork() == -1) {
-            fprintf(stderr, "Oh no! Time to reboot!\n");
-            exit(EXIT_FAILURE);
+        if (fork() == 0) {
+            break;
         }
     }
 
@@ -65,6 +65,12 @@ int main (int argc, char *argv[]) {
     // Cleanup.
     dsm_exit();
 
+    // If rank is zero, then wait for others.
+    if (r == 0) {
+        for (unsigned int i = 0; i < (cfg.nproc - 1); i++) {
+            waitpid(-1, NULL, 0);
+        }
+    }
 
     return 0;
 }

@@ -108,11 +108,13 @@ static void send_task_msg (int fd, dsm_msg_t type) {
     send_msg(fd, &msg);
 } 
 
+
 /*
  *******************************************************************************
  *                        Mapping Function Definitions                         *
  *******************************************************************************
 */
+
 
 // Forward declaration of signalProcess.
 static void signalProcess (int pid, int signal);
@@ -498,15 +500,11 @@ static void handle_new_message (int fd) {
  *******************************************************************************
 */
 
-static void dsm_cleanup_daemon (void) {
-	printf("[%d] Waiting on child!\n", getpid());
+// The cleanup daemon watches arbiter. When it exits, it destroys shared file.
+static void dsm_cleanup_daemon (int pid) {
 
 	// Wait for both the user process and arbiter to finish.
-	waitpid(-1, NULL, 0);
-	waitpid(-1, NULL, 0);
-
-	// Print exit message.
-	printf("[%d] Cleanup Daemon: Destroying shared resources!\n", getpid());
+	waitpid(pid, NULL, 0);
 
 	// Destroy shared resources.
 	dsm_unlinkSharedFile(DSM_SHM_FILE_NAME);
@@ -529,14 +527,9 @@ void dsm_arbiter (dsm_cfg *cfg) {
 	int is_child;				// Used to store the return value of fork.
     struct pollfd *pfd = NULL;  // Pointer to a struct pollfd instance.
 
-	// Fork the cleanup daemon.
-	if ((is_child = fork()) == -1) {
-		dsm_panic("Couldn't fork cleanup daemon!");
-	}
-
-	// If parent, run cleanup daemon. If child, run arbiter procedure.
-	if (is_child != 0) {
-		dsm_cleanup_daemon();
+	// Fork the arbiter
+	if ((is_child = dsm_fork()) != 0) {
+		dsm_cleanup_daemon(is_child);
 	}
 
     // Register functions.

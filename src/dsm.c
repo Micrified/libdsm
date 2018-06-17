@@ -227,11 +227,29 @@ static int recv_set_gid (void) {
  *******************************************************************************
 */
 
+// Sets new session ID, and forks the cleanup daemon and arbiter. Call as fork.
+static void fork_services (dsm_cfg *cfg) {
+	int is_child;
+
+	// Set new session ID.
+	if (setsid() == -1) {
+		dsm_panic("Couldn't set new session ID!");
+	}
+
+	// Fork the daemon and arbiter.
+	if ((is_child = dsm_fork()) == 0) {
+		dsm_arbiter(cfg);
+	}
+
+	// Die.
+	exit(EXIT_SUCCESS);
+}
+
 
 // Initializes the shared memory system. dsm_cfg is defined in dsm_arbiter.h.
 // Returns a pointer to the shared map.
 void *dsm_init (dsm_cfg *cfg) {
-    int fd, first, is_child = -1, attempts = 0;
+    int fd, first, attempts = 0;
 
     // Verify: Initializer not already called.
     ASSERT_STATE(g_sock_io != -1 || g_shared_map != NULL);
@@ -250,17 +268,12 @@ void *dsm_init (dsm_cfg *cfg) {
     // Map shared file to memory.
     g_shared_map = mapSharedFile(fd, g_map_size, PROT_READ|PROT_WRITE);
 
-	// If first: Fork arbiter as parent.
-	if (first) {
-		if ((is_child = fork()) == -1) {
-			dsm_panic("Couldn't fork abiter!");
-		}
-		if (is_child != 0) {
-			dsm_arbiter(cfg);
-		}
+	// If first: Fork cleanup daemon + arbiter as child.
+	if (first && dsm_fork() == 0) {
+		fork_services(cfg);
 	}
     
-    //printf("[%d] Waiting to begin...\n", getpid());
+    printf("[%d] Waiting to begin...\n", getpid());
 
 	// Try connecting to the arbiter.
 	do {

@@ -59,6 +59,6 @@ uninstall:
 clean:
 	test -f /dev/shm/dsm_file && rm /dev/shm/dsm_file
 	test -f /dev/shm/sem.dsm_start && rm /dev/shm/sem.dsm_start
-	test -f ./libdsm.a && rm libdsm.a
+	test -f ./libdsm.a && rm ./libdsm.a
 	rm ${ODIR}*.o
 

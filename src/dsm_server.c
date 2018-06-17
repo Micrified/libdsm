@@ -213,7 +213,7 @@ static void handler_add_pid (int fd, dsm_msg *mp) {
     // Register process in table.
     proc_p = dsm_setProcessTableEntry(g_proc_tab, fd, pid);
 
-    //printf("[%d] DSM_MSG_ADD_PID: Registered %d\n", getpid(), pid);
+    
 
     // Send response with process global identifier.
     mp->type = DSM_MSG_SET_GID;
