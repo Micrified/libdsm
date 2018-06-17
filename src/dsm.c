@@ -22,8 +22,12 @@
  *******************************************************************************
 */
 
-// The name of the shared initialization semaphore.
-#define DSM_SEM_INIT_NAME			"dsm_start"
+
+// The maximum number of connection attempts allowed.
+#define DSM_MAX_SOCK_POLL			100
+
+// The timeout (in microseconds) between connection attempts.
+#define DSM_SOCK_POLL_RATE			250000
 
 
 /*
@@ -32,9 +36,6 @@
  *******************************************************************************
 */
 
-
-// Initialization semaphore. Used to synchronize startup between processes.
-sem_t *g_sem_start;
 
 // Pointer to the shared (and protected) memory map.
 void *g_shared_map;
@@ -55,24 +56,6 @@ int g_sock_io;
  *******************************************************************************
 */
 
-
-// Opens or creates semaphore with initial value 'val'. Returns semaphore ptr.
-static sem_t *getSem (const char *name, unsigned int val) {
-	sem_t *sp = NULL;
-
-	// Try creating exclusive semaphore. Defer EEXIST error.
-	if ((sp = sem_open(name, O_CREAT|O_EXCL|O_RDWR, S_IRUSR|S_IWUSR, val))
-		== SEM_FAILED && errno != EEXIST) {
-		dsm_panicf("Couldn't create named-semaphore: \"%s\"!", name);
-	}
-
-	// Try opening existing semaphore. Panic on error.
-	if (sp == SEM_FAILED && (sp = sem_open(name, O_RDWR)) == SEM_FAILED) {
-		dsm_panicf("Couldn't open named-semaphore: \"%s\"!", name);
-	}
-
-	return sp;
-}
 
 // Creates or opens a shared file. Sets owner flag, returns file-descriptor.
 static int getSharedFile (const char *name, int *is_owner) {
@@ -179,6 +162,7 @@ static void recv_msg (int fd, dsm_msg *mp) {
  *******************************************************************************
 */
 
+
 // Sends DSM_MSG_ADD_PID to the arbiter.
 static void send_add_pid (void) {
     dsm_msg msg = {.type = DSM_MSG_ADD_PID};
@@ -247,13 +231,10 @@ static int recv_set_gid (void) {
 // Initializes the shared memory system. dsm_cfg is defined in dsm_arbiter.h.
 // Returns a pointer to the shared map.
 void *dsm_init (dsm_cfg *cfg) {
-    int fd, first;
+    int fd, first, is_child = -1, attempts = 0;
 
     // Verify: Initializer not already called.
     ASSERT_STATE(g_sock_io != -1 || g_shared_map != NULL);
-
-    // Create or open init-semaphore.
-    g_sem_start = getSem(DSM_SEM_INIT_NAME, 0);
 
     // Create or open shared file.
     fd = getSharedFile(DSM_SHM_FILE_NAME, &first);
@@ -269,20 +250,29 @@ void *dsm_init (dsm_cfg *cfg) {
     // Map shared file to memory.
     g_shared_map = mapSharedFile(fd, g_map_size, PROT_READ|PROT_WRITE);
 
-    // If first: Fork arbiter.
-    if (first && fork() == 0) {
-        //printf("[%d] Arbiter launching...\n", getpid());
-        //dsm_redirXterm();
-        dsm_arbiter(cfg);
-    }
+	// If first: Fork arbiter as parent.
+	if (first) {
+		if ((is_child = fork()) == -1) {
+			dsm_panic("Couldn't fork abiter!");
+		}
+		if (is_child != 0) {
+			dsm_arbiter(cfg);
+		}
+	}
     
     //printf("[%d] Waiting to begin...\n", getpid());
 
-    // Wait on initialization semaphore for release by arbiter.
-    dsm_down(g_sem_start);
+	// Try connecting to the arbiter.
+	do {
+		usleep(DSM_SOCK_POLL_RATE);
+		g_sock_io = dsm_getConnectedSocket(DSM_LOOPBACK_ADDR, DSM_ARB_PORT);
+		attempts++;
+	} while (g_sock_io == -1 && attempts < DSM_MAX_SOCK_POLL);
 
-    // Connect to arbiter.
-    g_sock_io = dsm_getConnectedSocket(DSM_LOOPBACK_ADDR, DSM_ARB_PORT);
+	// Error out if couldn't connect.
+	if (g_sock_io == -1) {
+		dsm_panic("Could not connect to arbiter!");
+	} 
 
     // Send check-in message.
     send_add_pid();

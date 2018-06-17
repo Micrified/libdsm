@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/mman.h>
+#include <sys/wait.h>
 #include <semaphore.h>
 
 #include "dsm_arbiter.h"
@@ -54,9 +55,6 @@ int g_sock_listen;
 
 // The server socket.
 int g_sock_server;
-
-// [EXTERN] Initialization semaphore. 
-extern sem_t *g_sem_start;
 
 // [EXTERN] Pointer to the shared (and protected) memory map.
 extern void *g_shared_map;
@@ -201,11 +199,9 @@ static void handler_cnt_all (int fd, dsm_msg *mp) {
     ASSERT_COND(fd == g_sock_server);
 
 
-    // Otherwise, set as started. Destroy shared files. send start message.
+    // Otherwise, set as started. Send start message.
     if (g_started == 0) {
         g_started = 1;
-        dsm_unlinkSharedFile(DSM_SHM_FILE_NAME);
-        dsm_unlinkNamedSem(DSM_SEM_INIT_NAME);
 
         // Send each process it's GID to start it. 
         dsm_mapFuncToProcessTableEntries(g_proc_tab, map_gid_all);
@@ -498,6 +494,30 @@ static void handle_new_message (int fd) {
 
 /*
  *******************************************************************************
+ *                               Cleanup Daemon                                *
+ *******************************************************************************
+*/
+
+static void dsm_cleanup_daemon (void) {
+	printf("[%d] Waiting on child!\n", getpid());
+
+	// Wait for both the user process and arbiter to finish.
+	waitpid(-1, NULL, 0);
+	waitpid(-1, NULL, 0);
+
+	// Print exit message.
+	printf("[%d] Cleanup Daemon: Destroying shared resources!\n", getpid());
+
+	// Destroy shared resources.
+	dsm_unlinkSharedFile(DSM_SHM_FILE_NAME);
+
+	// Exit.
+	exit(EXIT_SUCCESS);
+}
+
+
+/*
+ *******************************************************************************
  *                                   Arbiter                                   *
  *******************************************************************************
 */
@@ -506,7 +526,18 @@ static void handle_new_message (int fd) {
 // Runs the arbiter main loop. Exits on success.
 void dsm_arbiter (dsm_cfg *cfg) {
     int new = 0;                // Newly active connections (for poll syscall).
+	int is_child;				// Used to store the return value of fork.
     struct pollfd *pfd = NULL;  // Pointer to a struct pollfd instance.
+
+	// Fork the cleanup daemon.
+	if ((is_child = fork()) == -1) {
+		dsm_panic("Couldn't fork cleanup daemon!");
+	}
+
+	// If parent, run cleanup daemon. If child, run arbiter procedure.
+	if (is_child != 0) {
+		dsm_cleanup_daemon();
+	}
 
     // Register functions.
     dsm_setMsgFunc(DSM_MSG_STP_ALL, handler_stp_all, g_fmap);
@@ -547,10 +578,6 @@ void dsm_arbiter (dsm_cfg *cfg) {
     // Register server socket as pollable at index one.
     dsm_setPollable(g_sock_server, POLLIN, g_pollSet);
 
-    // Release any waiting processes.
-    for (unsigned int i = 0; i < cfg->nproc; i++) {
-        dsm_up(g_sem_start);
-    }
 
     // ------------------------------------------------------------------------
 

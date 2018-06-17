@@ -94,6 +94,7 @@ int dsm_getBoundSocket (int flags, int family, int socktype, const char *port) {
 	return ((p == NULL) ? -1 : s);	
 }
 
+
 // Returns a socket connected to given address and port. Exits fatally on error.
 int dsm_getConnectedSocket (const char *addr, const char *port) {
 	struct addrinfo hints, *res, *p;
