@@ -15,6 +15,9 @@ pingpong_semaphore: pingpong_semaphore.c
 dsm_pi: dsm_pi.c
 	${CC} ${CFLAGS} -o dsm_pi dsm_pi.c ${LIBS}
 
+primes: primes.c
+	${CC} ${CFLAGS} -o primes primes.c ${LIBS} -lm
+
 
 # CLEAN RULES
 
@@ -22,4 +25,5 @@ clean:
 	rm pingpong_busy_wait
 	rm pingpong_semaphore
 	rm dsm_pi
+	rm primes
 
