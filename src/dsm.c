@@ -25,7 +25,7 @@
 
 
 // The maximum number of connection attempts allowed.
-#define DSM_MAX_SOCK_POLL			5
+#define DSM_MAX_SOCK_POLL			15
 
 // The timeout (in microseconds) between connection attempts.
 #define DSM_SOCK_POLL_RATE			250000

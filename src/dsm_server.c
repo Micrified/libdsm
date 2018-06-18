@@ -6,6 +6,7 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <netdb.h>
 
 #include "dsm_inet.h"
@@ -408,17 +409,16 @@ static void handler_exit (int fd, dsm_msg *mp) {
 static void send_sid_msg (dsm_msg_t type, const char *sid) {
 	dsm_msg msg = {.type = type};
 	char b[INET6_ADDRSTRLEN];
-	unsigned int port;
+	unsigned int port = 0;
 	int s;
 
 	// Get connected socket.
 	s = dsm_getConnectedSocket(DSM_LOOPBACK_ADDR, DSM_DAEMON_PORT);
 
-	// Verify listener socket is set.
-	ASSERT_COND(g_sock_listen != -1);
-
-	// Extract details.
-	dsm_getSocketInfo(g_sock_listen, b, INET6_ADDRSTRLEN, &port);
+	// Extract details if type is DSM_MSG_SET_SID.
+	if (type == DSM_MSG_SET_SID) {
+		dsm_getSocketInfo(g_sock_listen, b, INET6_ADDRSTRLEN, &port);
+	}
 
 	// Configure the message.
 	snprintf(msg.sid.sid_name, DSM_MSG_STR_SIZE, "%s", sid);
@@ -478,15 +478,42 @@ static void handle_new_message (int fd) {
 
 /*
  *******************************************************************************
+ *                               Cleanup Daemon                                *
+ *******************************************************************************
+*/
+
+
+// The cleanup daemon watches the server. When it exits, it messages daemon.
+static void dsm_cleanup_daemon (int pid, const char *sid_name) {
+
+	// Wait for both the user process and arbiter to finish.
+	waitpid(pid, NULL, 0);
+
+	// Notify daemon session is no longer available.
+	send_sid_msg(DSM_MSG_DEL_SID, sid_name);
+
+	// Exit.
+	exit(EXIT_SUCCESS);
+}
+
+
+/*
+ *******************************************************************************
  *                                    Main                                     *
  *******************************************************************************
 */
 
 
 int main (int argc, const char *argv[]) {
+	int is_child;				// Used to store return value of fork.
     int nproc = -1;             // Number of expected processes.
     int new = 0;                // Newly active connections (for poll syscall).
     struct pollfd *pfd = NULL;  // Pointer to a struct pollfd instance.
+
+	// Fork the server
+	if ((is_child = dsm_fork()) != 0) {
+		dsm_cleanup_daemon(is_child, argv[1]);
+	}
 
     // Verify arguments.
     if (argc != 3 || sscanf(argv[2], "%d", &nproc) != 1 || nproc < 2) {
@@ -571,9 +598,6 @@ int main (int argc, const char *argv[]) {
     // ------------------------------------------------------------------------
 
     printf("[%d] Server Exiting...\n", getpid());
-
-	// Notify daemon session is no longer available.
-	send_sid_msg(DSM_MSG_DEL_SID, argv[1]);
 
     // Unregister listener socket.
     dsm_removePollable(g_sock_listen, g_pollSet);
