@@ -61,18 +61,22 @@ void dsm_setPollable (int fd, short events, pollset *p) {
 
 	// Check if room exists. Expand set if necessary.
 	if (p->fp >= p->length) {
-		p->length *= 2;
-		if ((p->fds = realloc(p->fds, p->length)) == NULL) {
+		p->length = MAX(p->length * 2, p->fp + 1);
+		if ((p->fds = realloc(p->fds, p->length * sizeof(struct pollfd))) 
+			== NULL) {
 			dsm_cpanic("Couldn't realloc pollset!", "Unknown");
 		}
 	}
 
 	// Install fd.
-	p->fds[p->fp++] = (struct pollfd) {
+	p->fds[p->fp] = (struct pollfd) {
 		.fd = fd,
 		.events = events,
 		.revents = 0
 	};
+
+	// Increment count.
+	p->fp++;
 }
 
 // Removes fd from pollset. Remaing sets are shuffled down.

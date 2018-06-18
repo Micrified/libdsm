@@ -5,6 +5,7 @@
 #include <assert.h>
 
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/socket.h>
 #include <netdb.h>
 
@@ -29,7 +30,7 @@
 #define DSM_DEF_BACKLOG			32
 
 // Minimum number of concurrent pollable connections.
-#define DSM_MIN_POLLABLE		32
+#define DSM_MIN_POLLABLE		4
 
 
 /*
@@ -41,6 +42,12 @@
 
 // Pollable file-descriptor set.
 pollset *g_pollSet;
+
+// Set of session-identifiers paired to file-descriptors by index.
+int *g_fd_sids;
+
+// Length of g_fd_sids.
+size_t g_fd_sids_length;
 
 // Function map.
 dsm_msg_func g_fmap[DSM_MSG_MAX_VAL];
@@ -57,17 +64,97 @@ int g_sock_listen;
 
 /*
  *******************************************************************************
+ *                   File-Descriptor to Session-ID Functions                   *
+ *******************************************************************************
+*/
+
+
+// Initializes the file-descriptor to session-ID set.
+static int *init_fd_sids (size_t size) {
+	int *fd_sids;
+
+	// Allocate the array.
+	if ((fd_sids = malloc(size * sizeof(int))) == NULL) {
+		dsm_panic("Allocation failed!");
+	}
+
+	// Set the array values to the unset value.
+	memset(fd_sids, -1, size * sizeof(int));
+
+	// Set global size.
+	g_fd_sids_length = size;
+
+	return fd_sids;
+}
+
+// Frees the file-descriptor to session-ID set.
+static void free_fd_sids (int *fd_sids) {
+	free(fd_sids);
+}
+
+// Sets the session-identifier for the given file-descriptor.
+static void set_fd_sid (int fd, int sid) {
+	size_t old_length = g_fd_sids_length;
+
+	// Verify arguments.
+	ASSERT_COND(g_fd_sids != NULL && fd > 0);
+
+	// Resize array if necessary. Remember to unset new slots.
+	if ((size_t)fd >= g_fd_sids_length) {
+		g_fd_sids_length = MAX(g_fd_sids_length * 2, (size_t)fd + 1);
+		g_fd_sids = realloc(g_fd_sids, g_fd_sids_length * sizeof(int));
+		memset(g_fd_sids + old_length, -1, (g_fd_sids_length - old_length)
+			 * sizeof(int));
+	}
+
+	// Insert sid.
+	g_fd_sids[fd] = sid;
+}
+
+// [DEBUG] Prints all session-identifiers for their given file-descriptors.
+static void show_fd_sids (void) {
+	printf("FD: ");
+	for (unsigned int i = 0; i < g_fd_sids_length; i++) {
+		printf("%d ", i);
+	}
+	printf("\n");
+	printf("SI: ");
+	for (unsigned int i = 0; i < g_fd_sids_length; i++) {
+		printf("%d ", g_fd_sids[i]);
+	}
+	printf("\n");
+}
+
+// Removes the session-identifier for the given file-descriptor.
+static void rem_fd_sid (int fd) {
+	
+	// Verify arguments.
+	ASSERT_COND(g_fd_sids != NULL && fd > 0 && (size_t)fd < g_fd_sids_length);
+
+	// Unset the entry.
+	g_fd_sids[fd] = -1;
+}
+
+
+/*
+ *******************************************************************************
  *                          Message Wrapper Functions                          *
  *******************************************************************************
 */
 
 
-// Sends a message to target file-descriptor. Performs packing task.
-static void send_msg (int fd, dsm_msg *mp) {
+// Sends a message to target fd for SID payload. Performs packing task.
+static void send_sid_msg (int fd, dsm_msg_t type, char *sid_name, int port) {
+	dsm_msg msg;
     unsigned char buf[DSM_MSG_SIZE];
 
+	// Create message.
+	msg.type = type;
+	msg.sid.port = port;
+	snprintf(msg.sid.sid_name, DSM_MSG_STR_SIZE, "%s", sid_name);
+	
     // Pack message.
-    dsm_pack_msg(mp, buf);
+    dsm_pack_msg(&msg, buf);
 
     // Send message.
     dsm_sendall(fd, buf, DSM_MSG_SIZE);
@@ -81,28 +168,41 @@ static void send_msg (int fd, dsm_msg *mp) {
 */
 
 
+// Forks a server session for given session name and number of processes.
+static void fork_session_server (const char *sid_name, unsigned int nproc);
+
 // DSM_MSG_GET_SID: Arbiter wishes to obtain session server details.
 static void handler_get_sid (int fd, dsm_msg *mp) {
 	dsm_sid_t *session = dsm_getHashTableEntry(g_sid_htab, mp->sid.sid_name);
 
-	// If the session doesn't exist, create one and fork a session server.
+	// If invalid number of processes specified: Send rejection response.
+	if (mp->sid.nproc < 2) {
+		send_sid_msg(fd, DSM_MSG_DEL_SID, mp->sid.sid_name, 0);		
+	}
+
+	// If session doesn't exist: Create one, fork server, and update sender.
 	if (session == NULL) {
-		dsm_setSIDHashTableEntry(g_sid_htab, mp->sid.sid_name);
-		printf("[%d] Forking an arbiter for %d processes!\n", getpid(),
-			mp->sid.nproc);
-		return;
+		session = dsm_setSIDHashTableEntry(g_sid_htab, mp->sid.sid_name);
+		fork_session_server(mp->sid.sid_name, mp->sid.nproc);
 	}
 
-	// If it does exist, and the port is set, then send a reply.
+	// Otherwise, if port is set: Send sender reply and disconnect them.
 	if (session->port != -1) {
-		printf("[%d] Sending session info!\n", getpid());
-		mp->type = DSM_MSG_SET_SID;
-		mp->sid.port = session->port;
-		send_msg(fd, mp);
+
+		// Dispatch reply.
+		send_sid_msg(fd, DSM_MSG_SET_SID, mp->sid.sid_name, session->port);
+
+		// Close sender socket.
+		close(fd);
+
+		// Remove sender from pollable set.
+		dsm_removePollable(fd, g_pollSet);
+
 		return;
 	}
 
-	// Otherwise do nothing.
+	// Update sender as waiting for SID.
+	set_fd_sid(fd, session->sid);
 }
 
 // DSM_MSG_SET_SID: Session server wishes to update it's connection info.
@@ -115,15 +215,23 @@ static void handler_set_sid (int fd, dsm_msg *mp) {
 		mp->sid.sid_name)) != NULL);
 
 	// Verify port.
-	ASSERT_COND(session->port > 0);
+	ASSERT_COND(mp->sid.port > 0);
 
 	// Update the session port.
-	session->port = session->port;
+	session->port = mp->sid.port;
 
-	// Notify all waiting arbiters.
-	printf("[%d] Notifying all waiting arbiters...\n", getpid());
+	// Notify all waiting arbiters, then remove them.
+	for (unsigned int i = 0; i < g_fd_sids_length; i++) {
+		if (g_fd_sids[i] == session->sid) {
+			send_sid_msg(i, DSM_MSG_SET_SID, mp->sid.sid_name, session->port);
+			rem_fd_sid(i);
+			dsm_removePollable(i, g_pollSet);
+		}
+	}
 
-
+	// Close sender socket and remove from pollables.
+	close(fd);
+	dsm_removePollable(fd, g_pollSet);
 }
 
 // DSM_MSG_DEL_SID: Session server wishes to terminate session.
@@ -134,13 +242,21 @@ static void handler_del_sid (int fd, dsm_msg *mp) {
 	// Ensure session exists.
 	ASSERT_COND((session = dsm_getHashTableEntry(g_sid_htab, 
 		mp->sid.sid_name)) != NULL);
+	
+	// Remove any waiting connections for said session.
+	for (unsigned int i = 0; i < g_fd_sids_length; i++) {
+		if (g_fd_sids[i] == session->sid) {
+			rem_fd_sid(i);
+			dsm_removePollable(i, g_pollSet);			
+		}
+	}
 
 	// Remove entry.
 	dsm_remHashTableEntry(g_sid_htab, mp->sid.sid_name);
-	
-	// Remove any waiting connections for said session.
-	printf("[%d] Destroyed session: \"%s\". Removing pending!\n", getpid(), 
-		mp->sid.sid_name);
+
+	// Close sender socket and remove from pollables.
+	close(fd);
+	dsm_removePollable(fd, g_pollSet);
 }
 
 
@@ -150,6 +266,29 @@ static void handler_del_sid (int fd, dsm_msg *mp) {
  *******************************************************************************
 */
 
+
+// Forks a server session for given session name and number of processes.
+static void fork_session_server (const char *sid_name, unsigned int nproc) {
+	int pid;
+	char buf[16] = {0};
+	snprintf(buf, 16, "%u", nproc);
+
+	// Fork once and exit to orphan server to init.
+	if ((pid = dsm_fork()) == 0) {
+
+		// Set as new session group leader to remove terminal.
+		if (dsm_fork() == 0) {
+			setsid();
+			execl("./bin/dsm_server", "dsm_server", sid_name, buf, 
+				(char *)NULL);
+		}
+
+		// Exit the fork.
+		exit(EXIT_SUCCESS);
+	}
+
+	waitpid(pid, NULL, 0);
+}
 
 // Handles a connection to the listener socket.
 static void handle_new_connection (int fd) {
@@ -180,9 +319,6 @@ static void handle_new_message (int fd) {
     } else {
         dsm_unpack_msg(&msg, buf);
     }
-
-    //printf("[%d] New Message!\n", getpid());
-    //dsm_showMsg(&msg);
 
     // Get handler. Abort if none set.
     if ((handler = dsm_getMsgFunc(msg.type, g_fmap)) == NULL) {
@@ -216,6 +352,9 @@ int main (int argc, const char *argv[]) {
 
 	// Initialize pollable set.
 	g_pollSet = dsm_initPollSet(DSM_MIN_POLLABLE);
+
+	// Initialize session-identifier set.
+	g_fd_sids = init_fd_sids(DSM_MIN_POLLABLE);
 
 	// Initialize session table.
 	g_sid_htab = dsm_initSIDHashTable();
@@ -272,6 +411,9 @@ int main (int argc, const char *argv[]) {
 
 	// Free string table.
 	dsm_freeStringTable(g_str_tab);
+
+	// Free session-identifier table.
+	free_fd_sids(g_fd_sids);
 
 	// Free pollable set.
 	dsm_freePollSet(g_pollSet);

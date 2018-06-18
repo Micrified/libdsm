@@ -8,7 +8,7 @@
 // Configuration struct: dsm_arbiter.h
 dsm_cfg cfg = {
     .nproc = 2,             // Total number of expected processes.
-    .sid = "Foo",           // Session-identifier: Doesn't do anything here.
+    .sid_name = "Foo",      // Session-identifier: Doesn't do anything here.
     .d_addr = "127.0.0.1",  // Daemon-address. TEMP: Used for server address.
     .d_port = "4200",       // Daemon-port. TEMP: Used for server port.
     .map_size = 4096        // Size of shared memory to reserve.

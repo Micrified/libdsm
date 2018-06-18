@@ -16,6 +16,7 @@
 #include "dsm_ptab.h"
 #include "dsm_stab.h"
 #include "dsm_sem_htab.h"
+#include "dsm_daemon.h"
 
 
 /*
@@ -70,7 +71,7 @@ dsm_stab *g_str_tab;
 dsm_sem_htab *g_sem_htab;
 
 // The listener socket.
-int g_sock_listen;
+int g_sock_listen = -1;
 
 
 /*
@@ -403,6 +404,34 @@ static void handler_exit (int fd, dsm_msg *mp) {
 */
 
 
+// Opens a socket to the server daemon. Sends message with SID payload.
+static void send_sid_msg (dsm_msg_t type, const char *sid) {
+	dsm_msg msg = {.type = type};
+	char b[INET6_ADDRSTRLEN];
+	unsigned int port;
+	int s;
+
+	// Get connected socket.
+	s = dsm_getConnectedSocket(DSM_LOOPBACK_ADDR, DSM_DAEMON_PORT);
+
+	// Verify listener socket is set.
+	ASSERT_COND(g_sock_listen != -1);
+
+	// Extract details.
+	dsm_getSocketInfo(g_sock_listen, b, INET6_ADDRSTRLEN, &port);
+
+	// Configure the message.
+	snprintf(msg.sid.sid_name, DSM_MSG_STR_SIZE, "%s", sid);
+	msg.sid.port = port;
+
+	// Dispatch message.
+	send_msg(s, &msg);
+
+	// Close socket.
+	close(s);
+}
+
+
 // Handles a connection to listener socket.
 static void handle_new_connection (int fd) {
     struct sockaddr_storage newAddr;
@@ -461,7 +490,7 @@ int main (int argc, const char *argv[]) {
 
     // Verify arguments.
     if (argc != 3 || sscanf(argv[2], "%d", &nproc) != 1 || nproc < 2) {
-        fprintf(stderr, "Usage: ./%s <port> <(nproc >= 2)>\n", argv[0]);
+        fprintf(stderr, "Usage: ./%s <sid> <(nproc >= 2)>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
@@ -496,9 +525,9 @@ int main (int argc, const char *argv[]) {
     // Initialize string table.
     g_str_tab = dsm_initStringTable(DSM_STR_TAB_SIZE);
 
-    // Initialize listener socket. Use any available port. [ARGV[1] for DEBUG]
+    // Initialize listener socket. Use any available port.
     g_sock_listen = dsm_getBoundSocket(AI_PASSIVE, AF_UNSPEC, SOCK_STREAM, 
-        argv[1]);
+        "0");
 
     // Register listener socket as pollable.
     dsm_setPollable(g_sock_listen, POLLIN, g_pollSet);
@@ -509,6 +538,9 @@ int main (int argc, const char *argv[]) {
     }
 
     printf("[%d] Ready: ", getpid()); dsm_showSocketInfo(g_sock_listen);
+
+	// Notify daemon session is available.
+	send_sid_msg(DSM_MSG_SET_SID, argv[1]);
 
     // ------------------------------------------------------------------------
 
@@ -539,6 +571,9 @@ int main (int argc, const char *argv[]) {
     // ------------------------------------------------------------------------
 
     printf("[%d] Server Exiting...\n", getpid());
+
+	// Notify daemon session is no longer available.
+	send_sid_msg(DSM_MSG_DEL_SID, argv[1]);
 
     // Unregister listener socket.
     dsm_removePollable(g_sock_listen, g_pollSet);

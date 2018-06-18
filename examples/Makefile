@@ -4,7 +4,7 @@ LIBS=-ldsm -lpthread -lrt -lxed
 
 # BUILD RULES
 
-all: pingpong_busy_wait pingpong_semaphore dsm_pi
+all: pingpong_busy_wait pingpong_semaphore dsm_pi primes
 
 pingpong_busy_wait: pingpong_busy_wait.c
 	${CC} ${CFLAGS} -o pingpong_busy_wait pingpong_busy_wait.c ${LIBS}

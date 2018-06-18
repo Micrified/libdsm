@@ -461,6 +461,13 @@ void dsm_showMsg (dsm_msg *mp) {
 			printf("nproc = %" PRId32 "\n", mp->sid.nproc);
 			break;
 
+		case DSM_MSG_DEL_SID:
+			printf("Type: DSM_MSG_DEL_SID\n");
+			printf("sid = \"%.*s\"\n", DSM_MSG_STR_SIZE,
+				mp->sid.sid_name);
+			printf("nproc = %" PRId32 "\n", mp->sid.nproc);
+			break;
+
 		case DSM_MSG_ALL_STP:
 			printf("Type: DSM_MSG_ALL_STP\n");
 			printf("nproc = %" PRId32 "\n", mp->task.nproc);

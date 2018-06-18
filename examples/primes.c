@@ -45,7 +45,7 @@ int main (void) {
     unsigned int *sum;  // Shared variable.
 
     // Set nproc.
-    nproc = 4;
+    nproc = 6;
 
     // Scan input.
     printf("Enter integer numbers <a,b> such that: 1 <= a <= b: ");

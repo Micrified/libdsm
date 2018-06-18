@@ -10,7 +10,7 @@
 
 
 // The port of the session daemon.
-#define DSM_DAEMON_PORT		"4800"
+#define DSM_DAEMON_PORT		"4200"
 
 
 /*

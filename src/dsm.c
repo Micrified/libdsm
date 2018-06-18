@@ -272,8 +272,6 @@ void *dsm_init (dsm_cfg *cfg) {
 	if (first && dsm_fork() == 0) {
 		fork_services(cfg);
 	}
-    
-    printf("[%d] Waiting to begin...\n", getpid());
 
 	// Try connecting to the arbiter.
 	do {
@@ -316,7 +314,7 @@ void *dsm_init2 (const char *sid, unsigned int nproc, size_t map_size) {
     // Default configuration.
     dsm_cfg cfg = {
         .nproc = nproc,
-        .sid = sid,
+        .sid_name = sid,
         .d_addr = "127.0.0.1",
         .d_port = "4200",
         .map_size = map_size
@@ -349,7 +347,6 @@ void dsm_wait_sem (const char *sem_name) {
 
 // Disconnects from shared memory system. Unmaps shared memory.
 void dsm_exit (void) {
-
 
     // Verify: Initializer has been called.
     ASSERT_STATE(g_sock_io != -1 && g_shared_map != NULL);

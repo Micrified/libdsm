@@ -108,6 +108,19 @@ static void send_task_msg (int fd, dsm_msg_t type) {
     send_msg(fd, &msg);
 } 
 
+// Receives a message from target file-descriptor. Performs unpacking task.
+static void recv_msg (int fd, dsm_msg *mp) {
+	unsigned char buf[DSM_MSG_SIZE];
+
+	// Receive data.
+	if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
+		dsm_cpanic("recv_msg", "Participant lost connection. Unsafe state!");
+	}
+
+	// Unpack data.
+	dsm_unpack_msg(mp, buf);
+}
+
 
 /*
  *******************************************************************************
@@ -432,22 +445,37 @@ static void signalProcess (int pid, int signal) {
 
 // Contacts daemon with sid, sets session details. Exits fatally on error.
 static int getServerSocket (dsm_cfg *cfg) {
-    char abuf[INET6_ADDRSTRLEN], pbuf[6];
-    UNUSED(cfg);
+	dsm_msg msg;
+    int sock;
 
-    // Get server address.
-    //printf("Server Address: "); scanf("%s", abuf);
-    abuf[INET6_ADDRSTRLEN - 1] = '\0';
+	// Attempt to connect to the daemon.
+	if ((sock = dsm_getConnectedSocket(cfg->d_addr, cfg->d_port)) == -1) {
+		dsm_panicf("Couldn't reach session daemon (%s:%s)", cfg->d_addr, 
+			cfg->d_port);
+	}
 
-    snprintf(abuf, INET6_ADDRSTRLEN, "%s", cfg->d_addr);
-    snprintf(pbuf, 6, "%s", cfg->d_port);
+	// Configure session request.
+	msg.type = DSM_MSG_GET_SID;
+	snprintf(msg.sid.sid_name, DSM_MSG_STR_SIZE, "%s", cfg->sid_name);
+	msg.sid.nproc = cfg->nproc;
+	
+	// Dispatch session request.
+	send_msg(sock, &msg);
 
-    // Get port.
-    //printf("Server Port: "); scanf("%s", pbuf);
-    //pbuf[5] = '\0';
+	// Read back response.
+	recv_msg(sock, &msg);
 
-    // Connect.
-    return dsm_getConnectedSocket(abuf, pbuf);
+	// Close connection.
+	close(sock);
+
+	// Connect to the session-server.
+	if ((sock = dsm_getConnectedSocket(cfg->d_addr, 
+		dsm_portToString(msg.sid.port))) == -1) {
+		dsm_panicf("Couldn't reach session server (%s:%s)", cfg->d_addr,
+			dsm_portToString(msg.sid.port));
+	}
+
+	return sock;
 }
 
 // Handles a connection to listener socket.
@@ -466,19 +494,15 @@ static void handle_new_connection (int fd) {
     dsm_setPollable(sock_new, POLLIN, g_pollSet);
 }
 
+
+
 // Handles a message from a pollable socket.
 static void handle_new_message (int fd) {
-    unsigned char buf[DSM_MSG_SIZE];
     dsm_msg msg = {0};
     void (*handler)(int, dsm_msg *);
 
-    // Read in data. Abort if sender disconnected (recvall returns nonzero).
-    if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
-        dsm_cpanic("handle_new_message", 
-            "Participant lost connection. Unsafe state!");
-    } else {
-        dsm_unpack_msg(&msg, buf);
-    }
+	// Read in data. Abort if sender disconnected (recvall returns nonzero).
+	recv_msg(fd, &msg);
 
     //printf("[%d] New Message!\n", getpid());
     //dsm_showMsg(&msg);
@@ -499,6 +523,7 @@ static void handle_new_message (int fd) {
  *                               Cleanup Daemon                                *
  *******************************************************************************
 */
+
 
 // The cleanup daemon watches arbiter. When it exits, it destroys shared file.
 static void dsm_cleanup_daemon (int pid) {
