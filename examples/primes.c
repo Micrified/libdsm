@@ -10,6 +10,17 @@
 #define FALSE   0
 #define TRUE    1
 
+
+// Configuration struct: dsm_arbiter.h
+dsm_cfg cfg = {
+    .nproc = 8,             // Total number of expected processes.
+    .sid_name = "Foo",      // Session-identifier: Doesn't do anything here.
+    .d_addr = "127.0.0.1",  // Daemon-address. 
+    .d_port = "4200",       // Daemon-port.
+    .map_size = 4096        // Size of shared memory to reserve.
+};
+
+
 // Returns the wall-time.
 static double get_wall_time (void) {
     struct timeval time;
@@ -45,7 +56,7 @@ int main (void) {
     unsigned int *sum;  // Shared variable.
 
     // Set nproc.
-    nproc = 6;
+    nproc = cfg.nproc;
 
     // Scan input.
     printf("Enter integer numbers <a,b> such that: 1 <= a <= b: ");
@@ -58,12 +69,12 @@ int main (void) {
     t = get_wall_time();
 
     // Fork to create nproc processes.
-    for (unsigned int i = 0; i < (nproc - 1); i++) {
+    for (unsigned int i = 1; i < cfg.nproc; i++) {
         if (fork() == 0) break;
     }
 
     // Initialize DSM.
-    sum = (unsigned int *)dsm_init2("Foo", nproc, 4096);
+    sum = (unsigned int *)dsm_init(&cfg);
 
     // Set rank.
     rank = dsm_getgid();

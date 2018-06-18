@@ -280,7 +280,7 @@ void *dsm_init (dsm_cfg *cfg) {
 
 	// Error out if couldn't connect.
 	if (g_sock_io == -1) {
-		dsm_panic("Could not connect to arbiter!");
+		dsm_panic("Couldn't reach arbiter. Delete /dev/shm/dsm_file");
 	} 
 
     // Send check-in message.
