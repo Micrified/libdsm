@@ -3,14 +3,13 @@
 #include <unistd.h>
 #include "dsm/dsm.h"
 
-/* Make then run the server with: "./bin/dsm_server 4200 2" */
 
 // Configuration struct: dsm_arbiter.h
 dsm_cfg cfg = {
     .nproc = 2,             // Total number of expected processes.
     .sid_name = "Foo",      // Session-identifier: Doesn't do anything here.
-    .d_addr = "127.0.0.1",  // Daemon-address. TEMP: Used for server address.
-    .d_port = "4200",       // Daemon-port. TEMP: Used for server port.
+    .d_addr = "127.0.0.1",  // Daemon-address.
+    .d_port = "4200",		// Daemon-port.
     .map_size = 4096        // Size of shared memory to reserve.
 };
 

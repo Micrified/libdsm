@@ -230,10 +230,9 @@ static int recv_set_gid (void) {
 
 // Sets new session ID, and forks the cleanup daemon and arbiter. Call as fork.
 static void fork_services (dsm_cfg *cfg) {
-	int is_child;
 
 	// Fork the daemon and arbiter.
-	if ((is_child = dsm_fork()) == 0) {
+	if (dsm_fork() == 0) {
 		dsm_arbiter(cfg);
 	}
 

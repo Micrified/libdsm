@@ -121,7 +121,7 @@ int dsm_getConnectedSocket (const char *addr, const char *port) {
 
 		// Try connecting to the socket.
 		if (connect(s, p->ai_addr, p->ai_addrlen) == -1) {
-			dsm_panicf("Couldn't connect to %s on %s", addr, port);
+			continue;
 		}
 
 		break;
