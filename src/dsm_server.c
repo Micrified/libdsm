@@ -521,6 +521,9 @@ int main (int argc, const char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    // Redirect to log.
+    //dsm_redirXterm();
+
     // ------------------------------------------------------------------------
 
     // Set the expected process count.
@@ -591,6 +594,7 @@ int main (int argc, const char *argv[]) {
         //dsm_showPollable(g_pollSet);
         //dsm_showOpQueue(g_opqueue);
         //dsm_showStringTable(g_str_tab);
+        //printf("STEP = %d\n", g_opqueue->step);
         //dsm_showProcessTable(g_proc_tab);
         //printf("\n\n");
     }

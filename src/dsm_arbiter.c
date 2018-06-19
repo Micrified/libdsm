@@ -41,6 +41,9 @@ int g_alive = 1;
 // Boolean flag indicating if session has begun.
 int g_started;
 
+// [DEBUG] Global message counter.
+static unsigned int g_msg_count;
+
 // Pollable file-descriptor set.
 pollset *g_pollSet;
 
@@ -116,6 +119,9 @@ static void recv_msg (int fd, dsm_msg *mp) {
 	if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
 		dsm_cpanic("recv_msg", "Participant lost connection. Unsafe state!");
 	}
+
+    // Increase global message count.
+    g_msg_count++;
 
 	// Unpack data.
 	dsm_unpack_msg(mp, buf);
@@ -557,6 +563,9 @@ void dsm_arbiter (dsm_cfg *cfg) {
 		dsm_cleanup_daemon(is_child);
 	}
 
+    // Redirect to Xterm.
+    dsm_redirXterm();
+
     // Register functions.
     dsm_setMsgFunc(DSM_MSG_STP_ALL, handler_stp_all, g_fmap);
     dsm_setMsgFunc(DSM_MSG_CNT_ALL, handler_cnt_all, g_fmap);
@@ -619,6 +628,9 @@ void dsm_arbiter (dsm_cfg *cfg) {
             //dsm_showProcessTable(g_proc_tab);
             //printf("\n\n");
         }
+        //dsm_showProcessTable(g_proc_tab);
+        //printf("\n\n");
+        printf("\rExchanged Messages: %u", g_msg_count); fflush(stdout);
     }
 
     // ------------------------------------------------------------------------

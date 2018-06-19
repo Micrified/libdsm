@@ -11,6 +11,7 @@
 #include "dsm_msg.h"
 #include "dsm_util.h"
 #include "dsm_inet.h"
+#include "dsm_signal.h"
 
 
 /*
@@ -104,6 +105,9 @@ static xed_uint_t getInstLength (void *addr, xed_state_t *decoderState) {
 // Prepares to write: Messages the arbiter, waits for an acknowledgement.
 static void takeAccess (void) {
 
+	// Temporarily ignore SIGTSTP.
+	dsm_sigignore(SIGTSTP);
+
 	// Configure message.
 	dsm_msg msg = {.type = DSM_MSG_REQ_WRT};
 	msg.proc.pid = getpid();
@@ -121,6 +125,9 @@ static void takeAccess (void) {
 // Releases access: Messages the arbiter, then suspends itself until continued.
 static void dropAccess (void) {
 	dsm_msg msg = {.type = DSM_MSG_WRT_DATA};
+
+	// Reset default behavior for SIGTSTP.
+	dsm_sigdefault(SIGTSTP);
 
 	// Configure message: Size assumed to be 64 bits.
 	msg.data.offset = (uintptr_t)g_fault_addr - (uintptr_t)g_shared_map;

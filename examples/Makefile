@@ -18,6 +18,9 @@ dsm_pi: dsm_pi.c
 primes: primes.c
 	${CC} ${CFLAGS} -o primes primes.c ${LIBS} -lm
 
+contrast: dsm_contrast.c image.c
+	${CC} ${CFLAGS} -o dsm_contrast dsm_contrast.c image.c ${LIBS} -lm
+
 
 # CLEAN RULES
 
@@ -26,4 +29,5 @@ clean:
 	rm pingpong_semaphore
 	rm dsm_pi
 	rm primes
+	rm dsm_contrast
 
