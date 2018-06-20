@@ -14,6 +14,7 @@
 #include "dsm_inet.h"
 #include "dsm_ptab.h"
 
+
 /*
  *******************************************************************************
  *                             Symbolic Constants                              *
@@ -43,6 +44,9 @@ int g_started;
 
 // [DEBUG] Global message counter.
 static unsigned int g_msg_count;
+
+// [DEBUG] Global timer.
+static double g_seconds_elapsed;
 
 // Pollable file-descriptor set.
 pollset *g_pollSet;
@@ -223,6 +227,9 @@ static void handler_cnt_all (int fd, dsm_msg *mp) {
     // Otherwise, set as started. Send start message.
     if (g_started == 0) {
         g_started = 1;
+
+        // Start global timer.
+        g_seconds_elapsed = dsm_getWallTime();
 
         // Send each process it's GID to start it. 
         dsm_mapFuncToProcessTableEntries(g_proc_tab, map_gid_all);
@@ -651,6 +658,12 @@ void dsm_arbiter (dsm_cfg *cfg) {
 
     // Free the pollable set.
     dsm_freePollSet(g_pollSet);
+
+    // Compute elapsed time, display momentarily.
+    g_seconds_elapsed = dsm_getWallTime() - g_seconds_elapsed;
+    printf("\nElapsed Seconds: %f\n", g_seconds_elapsed);
+    fflush(stdout);
+    sleep(5);
 
     // Exit.
     exit(EXIT_SUCCESS);

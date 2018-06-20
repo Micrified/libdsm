@@ -4,42 +4,36 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <string.h>
+
 #include "dsm/dsm.h"
 #include "image.h"
 
-// Pointer to shared memory map.
-int *shared_data;
+#define PAGESIZE    4096
 
-// Size of shared memory map.
-size_t shared_data_size;
-
-// Computes the maximum and mimimum over an image.
-void getRange (int *max_p, int *min_p, int length, int *segment) {
+// Compute minimum and maximum over range.
+void setMinMax (int *max_p, int *min_p, int length, int *segment) {
     int min, max;
 
     // Initialize min and max.
     min = max = *segment;
 
-    // Compute min and max over segment.
+    // Compute local min and max.
     for (int i = 0; i < length; i++) {
-        min = segment[i] < min ? segment[i] : min;
-        max = segment[i] > max ? segment[i] : max;
+        max = (segment[i] > max ? segment[i] : max);
+        min = (segment[i] < min ? segment[i] : min);
     }
-	printf("[%d] local max = %d, local min = %d\n", getpid(), max, min);
 
-    // Assign max and min.
-    dsm_wait_sem("range");
-    *max_p = (*max_p > max) ? *max_p : max;
-    *min_p = (*min_p < min) ? *min_p : min;
-    dsm_post_sem("range");
-    printf("[%d] Ended up with: max = %d, min = %d\n", getpid(), *max_p, *min_p);
+    // Update global min and max. 
+    dsm_wait_sem("u");
+    *max_p = (max > *max_p ? max : *max_p);
+    *min_p = (min < *min_p ? min : *min_p);
+    dsm_post_sem("u");
 }
 
-// Stretches the contrast of an image.
-void contrastStretch (int low, int high, int max, int min, int length, int *segment) {
+// Stretch image contrast.
+void stretchContrast (int low, int high, int max, int min, int length, int *segment) {
     float scale = (float)(high - low) / (max - min);
-	printf("[%d] Contrast Stretch (low = %d, high = %d, max = %d, min = %d) scale = %f\n", getpid(), low, high, max, min, scale);
-    // Perform stretch.
+
     for (int i = 0; i < length; i++) {
         segment[i] = scale * (segment[i] - min);
     }
@@ -47,88 +41,73 @@ void contrastStretch (int low, int high, int max, int min, int length, int *segm
 
 int main (int argc, char *argv[]) {
     Image image;
-    size_t imageSize;
-    int rank, nproc = 4;
-    int *max_p, *min_p, *width_p, *height_p, *data;
-
+    size_t imageSize, sharedSize = (6400 * PAGESIZE); 
+    int nproc, rank;
+    int *max_p, *min_p, *width_p, *height_p, *shared, *data;
+    
     // Verify arguments.
-    if (argc != 3) {
-        fprintf(stderr, "Usage: %s input.pgm output.pgm\n", argv[0]);
+    if (argc != 4 || sscanf(argv[1], "%d", &nproc) != 1) {
+        fprintf(stderr, "Usage: %s <nproc> <in.pgm> <out.pgm>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
-    // Fork to create a total of nproc processes.
+    // Fork processes.
     for (int i = 1; i < nproc; i++) {
         if (fork() == 0) break;
     }
 
-    // Initialize DSM, set rank.
-    shared_data_size = 6400 * 4096;
-    shared_data = dsm_init2("contrast", nproc, shared_data_size);
+    // Initialize DSM and rank.
+    shared = dsm_init2("contrast", nproc, sharedSize);
     rank = dsm_getgid();
 
-    // Configure pointers.
-    max_p = shared_data + 0;
-    min_p = shared_data + 1;
-    width_p = shared_data + 2;
-    height_p = shared_data + 3;
-    data = shared_data + 4;
+    // Set shared addresses.
+    max_p = shared + 0; min_p = shared + 1; width_p = shared + 2;
+    height_p = shared + 3; data = shared + 4;
 
-    // If rank 0: Read in image and setup pointers.
+    // Rank 0: Read in image and assign values.
     if (rank == 0) {
-        image = readImage(argv[1]);
+        image = readImage(argv[2]);
         imageSize = image->width * image->height * sizeof(int);
-		printf("imageSize = %zu\n", imageSize);
-        assert((imageSize + 4) <= shared_data_size);
-
-        // Write width and height to first two bytes.
-        *width_p = image->width;
-        *height_p = image->height;
-
-        // Set max_p and min_p to initial values.
+        assert((imageSize + 4) <= sharedSize);
+        *width_p = image->width; *height_p = image->height;
         *max_p = *min_p = image->imdata[0][0];
-
-        // Check rest of data fits, then write to shared memory.
         memcpy(data, image->imdata[0], imageSize);
     }
 
-    // Everyone waits to start.
+    // Synchronize.
     dsm_barrier();
 
-    // Everyone computes their new data segment.
-    int n = (*width_p) * (*height_p);
-    int offset = rank * (n / nproc);
+    // Everyone computes their own segment.
+    int n = (*width_p) * (*height_p), offset = rank * (n / nproc);
     int length = (n / nproc) + (rank == (nproc - 1)) * (n % nproc);
-    printf("[%d] I'm handling [%d -> %d)\n", getpid(), offset, offset + length);
-	fflush(stdout);
 
-    // Compute the max and min.
-    getRange(max_p, min_p, length, data + offset);
+    // Compute min and max.
+    setMinMax(max_p, min_p, length, data + offset);
 
-	// Everyone waits for next stage.
-	dsm_barrier();
-     
-    // Perform the contrast stretch.
-    contrastStretch(0, 255, *max_p, *min_p, length, data + offset);
-
-    // Everyone waits to end.
+    // Synchronize
     dsm_barrier();
 
-    // If rank 0: Copy data back and write out image.
+    // Perform contrast stretch.
+    stretchContrast(0, 255, *max_p, *min_p, length, data + offset);
+
+    // Synchronize.
+    dsm_barrier();
+
+    // Rank 0: Copy data back and write out image.
     if (rank == 0) {
-        memcpy(image->imdata[0], shared_data + 4, imageSize);
-        writeImage(image, argv[2]);
+        memcpy(image->imdata[0], shared + 4, imageSize);
+        writeImage(image, argv[3]);
     }
 
-	// DSM exit.
-	dsm_exit();
+    // Exit.
+    dsm_exit();
 
-	// If rank 0: Clean up zombies.
-	if (rank == 0) {
+    // Rank 0: Clean up zombies.
+    if (rank == 0) {
         for (int i = 1; i < nproc; i++) {
             waitpid(-1, NULL, 0);
         }
-	}
-
+    }
+    
     return 0;
 }

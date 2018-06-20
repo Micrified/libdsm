@@ -71,6 +71,8 @@ int dsm_redirXterm (void);
 // Performs a fork. Exits fatally on error. 
 int dsm_fork (void);
 
+// Returns the current wall time in seconds.
+double dsm_getWallTime (void);
 
 
 /*

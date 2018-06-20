@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include "dsm_util.h"
 
 
@@ -189,6 +190,17 @@ int dsm_fork (void) {
 	return pid;
 }
 
+// Returns the current wall time in seconds.
+double dsm_getWallTime (void) {
+	struct timeval time;
+
+	// Attempt to extract time.
+	if (gettimeofday(&time, NULL) != 0) {
+		dsm_panic("Could not obtain time of day!");
+	}
+
+	return (double)time.tv_sec + (double)time.tv_usec * 0.000001;
+}
 
 /*
  *******************************************************************************
