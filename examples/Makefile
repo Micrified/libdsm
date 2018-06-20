@@ -28,6 +28,6 @@ clean:
 	rm pingpong_busy_wait
 	rm pingpong_semaphore
 	rm dsm_pi
-	rm primes
+	rm dsm_primes
 	rm dsm_contrast
 
