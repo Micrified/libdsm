@@ -363,8 +363,10 @@ int main (int argc, const char *argv[]) {
 	g_str_tab = dsm_initStringTable(DSM_STR_TAB_SIZE);
 
 	// Initialize listener socket. Use default port.
-	g_sock_listen = dsm_getBoundSocket(AI_PASSIVE, AF_UNSPEC, SOCK_STREAM, 
-		DSM_DAEMON_PORT);
+	if ((g_sock_listen = dsm_getBoundSocket(AI_PASSIVE, AF_UNSPEC, SOCK_STREAM, 
+		DSM_DAEMON_PORT)) == -1) {
+		dsm_panicf("Couldn't bind to port %d!", DSM_DAEMON_PORT);
+	}
 
 	// Register listener socket as pollable.
 	dsm_setPollable(g_sock_listen, POLLIN, g_pollSet);

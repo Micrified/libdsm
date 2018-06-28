@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/wait.h>
+#include <sys/mman.h>
 
 #include "dsm.h"
 #include "dsm_msg.h"
@@ -167,36 +168,16 @@ static void fork_services (dsm_cfg *cfg) {
 // Initializes the shared memory system. dsm_cfg is defined in dsm_arbiter.h.
 // Returns a pointer to the shared map.
 void *dsm_init (dsm_cfg *cfg) {
-    int fd, pid, first, attempts = 0;
+    int fd, pid, first = 0, attempts = 0;
 
     // Verify: Initializer not already called.
     ASSERT_STATE(g_sock_io != -1 || g_shared_map != NULL);
 
-    // Create or open shared file.
-    fd = getSharedFile(DSM_SHM_FILE_NAME, &first);
-
-    // Set or get file size. 
-    if (first) {
-        g_map_size = setSharedFileSize(fd, MAX(DSM_SHM_FILE_SIZE, 
-            cfg->map_size));
-    } else {
-        g_map_size = getSharedFileSize(fd);
-    }
-
-    // Map shared file to memory.
-    g_shared_map = mapSharedFile(fd, g_map_size, PROT_READ|PROT_WRITE);
-
-	// If first: Fork cleanup daemon + arbiter as child.
-	if (first) {
-		if ((pid = dsm_fork()) == 0) {
-			fork_services(cfg);
-		}
+	// Double-fork arbiter and it's cleanup daemon.
+	if ((pid = fork()) == 0) {
+		fork_services(cfg);
 		waitpid(pid, NULL, 0);
 	}
-
-	// Fork cleanup daemon + arbiter as child.
-	// If I do this here, then a failing arbiter can't unmap while the 
-	// Proper one tries to map. Some mutual exclusion mechanism needed.
 
 	// Try connecting to the arbiter.
 	do {
@@ -207,8 +188,21 @@ void *dsm_init (dsm_cfg *cfg) {
 
 	// Error out if couldn't connect.
 	if (g_sock_io == -1) {
-		dsm_panic("Couldn't reach arbiter. Delete /dev/shm/dsm_file");
-	} 
+		dsm_panicf("Couldn't reach arbiter. Ensure port %s is free!", 
+			DSM_ARB_PORT);
+	}
+
+	// Open the shared file.
+	fd = dsm_getSharedFile(DSM_SHM_FILE_NAME, &first);
+
+	// Assert process did not create it (only arbiter should).
+	ASSERT_COND(first == 0);
+
+	// Get the file size.
+	g_map_size = dsm_getSharedFileSize(fd);
+
+	// Map shared file to memory.
+	g_shared_map = dsm_mapSharedFile(fd, g_map_size, PROT_READ|PROT_WRITE);
 
     // Send check-in message.
     send_add_pid();
@@ -249,7 +243,7 @@ void *dsm_init2 (const char *sid, unsigned int nproc, size_t map_size) {
 }
 
 // Returns the global process identifier (GID) to the caller.
-int dsm_getgid (void) {
+int dsm_get_gid (void) {
     return g_gid;
 }
 

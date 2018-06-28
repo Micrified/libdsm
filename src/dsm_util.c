@@ -284,7 +284,7 @@ void *dsm_pageAlloc (void *address, size_t size) {
 
 // Creates or opens a shared file. Sets creator flag, returns file-descriptor.
 int dsm_getSharedFile (const char *name, int *is_creator) {
-	int fd, mode = S_IRUSR|S_IRUSR, creator = 0;
+	int fd, mode = S_IRUSR|S_IWUSR, creator = 0;
 
 	// Try creating exclusive file.
 	if ((fd = shm_open(name, O_CREAT|O_EXCL|O_RDWR, mode)) == -1 &&

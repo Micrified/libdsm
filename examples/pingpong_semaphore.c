@@ -24,7 +24,7 @@ int main (void) {
     dsm_init(&cfg);
 
     // Down once if process zero. Down twice if process one to block.
-    if (dsm_getgid() == 0) {
+    if (dsm_get_gid() == 0) {
         dsm_wait_sem("sem_zero"); // Limited to 32-char. Creates if unique.
     } else {
         dsm_wait_sem("sem_one"); // Down once.
@@ -34,14 +34,14 @@ int main (void) {
     // Play ping pong.
     for (int i = 0; i < 5; i++) {
 
-        if (dsm_getgid() == 0) {
+        if (dsm_get_gid() == 0) {
             printf("Ping! ...\n");
         } else {
             printf("... Pong!\n");
         }
 
         // Unlock each others semaphore.
-        if (dsm_getgid() == 0) {
+        if (dsm_get_gid() == 0) {
             dsm_post_sem("sem_one");
             dsm_wait_sem("sem_zero");
         } else {

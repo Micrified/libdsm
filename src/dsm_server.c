@@ -556,8 +556,10 @@ int main (int argc, const char *argv[]) {
     g_str_tab = dsm_initStringTable(DSM_STR_TAB_SIZE);
 
     // Initialize listener socket. Use any available port.
-    g_sock_listen = dsm_getBoundSocket(AI_PASSIVE, AF_UNSPEC, SOCK_STREAM, 
-        "0");
+    if ((g_sock_listen = dsm_getBoundSocket(AI_PASSIVE, AF_UNSPEC, SOCK_STREAM, 
+        "0")) == -1) {
+		dsm_panic("Cannot find any port to bind to!");
+	}
 
     // Register listener socket as pollable.
     dsm_setPollable(g_sock_listen, POLLIN, g_pollSet);

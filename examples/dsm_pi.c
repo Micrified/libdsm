@@ -28,17 +28,15 @@ int main (int argc, char *argv[]) {
     }
 
     // Each process must call dsm_init at least once. Fork before call.
-    for (unsigned int i = 0; i < (cfg.nproc - 1); i++) {
-        if (fork() == 0) {
-            break;
-        }
+    for (unsigned int i = 1; i < cfg.nproc; i++) {
+        if (fork() == 0) break;
     }
 
     // Initialize shared memory.
     sum = (double *)dsm_init(&cfg);
 
     // Assign "rank".
-    r = dsm_getgid();
+    r = dsm_get_gid();
 
     // Compute portion
     for (double x = r * step; x < 1.0; x += cfg.nproc * step) {

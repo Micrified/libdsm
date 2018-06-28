@@ -20,7 +20,7 @@ void *dsm_init (dsm_cfg *cfg);
 void *dsm_init2 (const char *sid, unsigned int nproc, size_t map_size);
 
 // Returns the global process identifier (GID) to the caller.
-int dsm_getgid (void);
+int dsm_get_gid (void);
 
 // Blocks process until all other processes are synchronized at the same point.
 void dsm_barrier (void);

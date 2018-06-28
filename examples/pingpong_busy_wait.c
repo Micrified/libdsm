@@ -27,8 +27,8 @@ int main (void) {
 
     // Play ping pong.
     for (int i = 0; i < 5; i++) {
-        while (*turn != dsm_getgid());
-        if (dsm_getgid() == 0) {
+        while (*turn != dsm_get_gid());
+        if (dsm_get_gid() == 0) {
             printf("Ping! ...\n");
         } else {
             printf("... Pong!\n");

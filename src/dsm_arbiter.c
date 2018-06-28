@@ -63,11 +63,11 @@ int g_sock_listen;
 // The server socket.
 int g_sock_server;
 
-// [EXTERN] Pointer to the shared (and protected) memory map.
-extern void *g_shared_map;
+// Pointer to the shared (and protected) memory map.
+void *g_shared_map;
 
-// [EXTERN] Size of the shared map.
-extern off_t g_map_size;
+// Size of the shared map.
+off_t g_map_size;
 
 
 
@@ -561,17 +561,36 @@ static void dsm_cleanup_daemon (int pid) {
 
 // Runs the arbiter main loop. Exits on success.
 void dsm_arbiter (dsm_cfg *cfg) {
+	int fd;						// File-descriptor for shared memory map.
     int new = 0;                // Newly active connections (for poll syscall).
 	int is_child;				// Used to store the return value of fork.
     struct pollfd *pfd = NULL;  // Pointer to a struct pollfd instance.
 
-	// Fork the arbiter
+	// Initialize listener socket: If already occupied, yield.
+    if ((g_sock_listen = dsm_getBoundSocket(AI_PASSIVE, AF_UNSPEC, SOCK_STREAM,
+        DSM_ARB_PORT)) == -1 || listen(g_sock_listen, DSM_DEF_BACKLOG) == -1) {
+		exit(EXIT_SUCCESS);
+	}
+
+	// Fork arbiter as child. Close listener socket and wait to cleanup.
 	if ((is_child = dsm_fork()) != 0) {
+		close(g_sock_listen);
 		dsm_cleanup_daemon(is_child);
 	}
 
-    // Redirect to Xterm.
+	// Redirect to Xterm.
     dsm_redirXterm();
+
+	// Create or open the shared file.
+	fd = dsm_getSharedFile(DSM_SHM_FILE_NAME, NULL);
+
+	// Set the file size.
+	g_map_size = dsm_setSharedFileSize(fd, MAX(DSM_SHM_FILE_SIZE, 
+		cfg->map_size));
+
+	// Map shared file to memory.
+	g_shared_map = dsm_mapSharedFile(fd, g_map_size, PROT_READ|PROT_WRITE);
+
 
     // Register functions.
     dsm_setMsgFunc(DSM_MSG_STP_ALL, handler_stp_all, g_fmap);
@@ -596,15 +615,6 @@ void dsm_arbiter (dsm_cfg *cfg) {
 
     // Initialize server socket.
     g_sock_server = getServerSocket(cfg);
-
-    // Initialize listener socket.
-    g_sock_listen = dsm_getBoundSocket(AI_PASSIVE, AF_UNSPEC, SOCK_STREAM,
-        DSM_ARB_PORT);
-
-    // Listen on listener socket.
-    if (listen(g_sock_listen, DSM_DEF_BACKLOG) == -1) {
-        dsm_panic("Couldn't listen on listener socket!");
-    }
 
     // Register listener socket as pollable at index zero.
     dsm_setPollable(g_sock_listen, POLLIN, g_pollSet);

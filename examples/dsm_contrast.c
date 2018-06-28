@@ -58,7 +58,7 @@ int main (int argc, char *argv[]) {
 
     // Initialize DSM and rank.
     shared = dsm_init2("contrast", nproc, sharedSize);
-    rank = dsm_getgid();
+    rank = dsm_get_gid();
 
     // Set shared addresses.
     max_p = shared + 0; min_p = shared + 1; width_p = shared + 2;

@@ -20,7 +20,7 @@ const char *dsm_portToString (unsigned int port);
 // Returns string describing address of addrinfo struct. Returns NULL on error.
 const char *dsm_addrinfoToString (struct addrinfo *ap, char *b); 
 
-// Returns a socket bound to the given port. Exits fatally on error.
+// Returns a socket bound to the given port. Returns -1 if cannot bind.
 int dsm_getBoundSocket (int flags, int family, int socktype, const char *port);
 
 // Returns a socket connected to given address and port. Exits fatally on error.

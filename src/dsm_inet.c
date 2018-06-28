@@ -49,7 +49,7 @@ const char *dsm_addrinfoToString (struct addrinfo *ap, char *b) {
 	return inet_ntop(ap->ai_family, addr, b, INET6_ADDRSTRLEN);
 }
 
-// Returns a socket bound to the given port. Exits fatally on error.
+// Returns a socket bound to the given port. Returns -1 if cannot bind.
 int dsm_getBoundSocket (int flags, int family, int socktype, const char *port) {
 	struct addrinfo hints, *res, *p;
 	int s, stat, y = 1;
@@ -79,9 +79,9 @@ int dsm_getBoundSocket (int flags, int family, int socktype, const char *port) {
 			dsm_panicf("Couldn't reuse port (%s)", port);
 		}
 
-		// Try binding to the socket.
+		// Try binding to the socket. Continue if not possible
 		if (bind(s, p->ai_addr, p->ai_addrlen) == -1) {
-			dsm_panicf("Couldn't bind to port (%s)", port);
+			continue;
 		}
 
 		break;

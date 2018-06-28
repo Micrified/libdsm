@@ -67,7 +67,7 @@ int main (int argc, const char *argv[]) {
     sum = (unsigned int *)dsm_init(&cfg);
 
     // Set rank.
-    rank = dsm_getgid();
+    rank = dsm_get_gid();
 
     if (a <= 2) {
         cnt = 1 * (rank == 0); // Only add once!
