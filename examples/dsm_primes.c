@@ -34,7 +34,7 @@ static int isPrime (unsigned int p) {
     return i < root ? FALSE : TRUE;
 }
 
-int main (void) {
+int main (int argc, const char *argv[]) {
     unsigned int i, j;  // Loop iterators.
     unsigned int a, b;  // Range of primes.
     unsigned int nproc; // Number of participant processes.
@@ -42,8 +42,14 @@ int main (void) {
     unsigned int cnt;   // Number of primes in interval.
     unsigned int *sum;  // Shared variable.
 
-    // Set nproc.
-    nproc = cfg.nproc;
+    // Scan process count fromp program args.
+    if (argc != 2 || sscanf(argv[1], "%d", &nproc) != 1) {
+        fprintf(stderr, "Usage: %s <nproc>\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    // Set config nproc.
+    cfg.nproc = nproc;
 
     // Scan input.
     printf("Enter integer numbers <a,b> such that: 1 <= a <= b: ");
@@ -53,7 +59,7 @@ int main (void) {
     }
 
     // Fork to create nproc processes.
-    for (unsigned int i = 1; i < cfg.nproc; i++) {
+    for (unsigned int i = 1; i < nproc; i++) {
         if (fork() == 0) break;
     }
 

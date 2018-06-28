@@ -4,10 +4,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
 #include <sys/wait.h>
-#include <semaphore.h>
 
 #include "dsm.h"
 #include "dsm_msg.h"
@@ -49,80 +46,6 @@ static int g_gid = -1;
 
 // Communication socket.
 int g_sock_io;
-
-
-/*
- *******************************************************************************
- *                        Private Function Definitions                         *
- *******************************************************************************
-*/
-
-
-// Creates or opens a shared file. Sets owner flag, returns file-descriptor.
-static int getSharedFile (const char *name, int *is_owner) {
-	int fd, mode = S_IRUSR|S_IWUSR, owner = 0;
-
-	// Try creating exclusive file. Defer EEXIST error.
-	if ((fd = shm_open(name, O_CREAT|O_EXCL|O_RDWR, mode)) == -1 &&
-		errno != EEXIST) {
-		dsm_panicf("Couldn't created shared file \"%s\"!", name);
-	}
-
-	// Set owner flag.
-	owner = (fd != -1);
-
-	// Try opening existing file. Panic on error.
-	if (!owner && (fd = shm_open(name, O_RDWR, mode)) == -1) {
-		dsm_panicf("Couldn't open shared file \"%s\"!", name);
-	}
-
-	// Set owner pointer.
-	if (is_owner != NULL) {
-		*is_owner = owner;	
-	}
-
-	return fd;
-}
-
-// Sets size of shared file. Returns given size on success. Panics on error.
-static off_t setSharedFileSize (int fd, off_t size) {
-
-    // Round size up to next multiple of a page.
-    if (size % DSM_PAGESIZE != 0) {
-        size += (size % DSM_PAGESIZE);
-    }
-
-	if (ftruncate(fd, size) == -1) {
-		dsm_panicf("Couldn't resize shared file (fd = %d)!", fd);
-	}
-	return size;
-}
-
-// Returns the size of a shared file. Panics on error.
-static off_t getSharedFileSize (int fd) {
-	struct stat sb;
-
-	if (fstat(fd, &sb) == -1) {
-		dsm_panicf("Couldn't get size of shared file (fd = %d)!", fd);
-	}
-
-	return sb.st_size;
-}
-
-// Maps shared file of given size to memory with protections. Panics on error.
-static void *mapSharedFile (int fd, size_t size, int prot) {
-	void *map;
-
-	// Let operating system select starting address: PAGE ALIGNED
-	if ((map = mmap(NULL, size, prot, MAP_SHARED, fd, 0)) == MAP_FAILED) {
-		dsm_panicf("Couldn't map shared file to memory (fd = %d)!", fd);
-	}
-
-	// Zero the memory.
-	memset(map, 0, size);
-
-	return map;
-}
 
 
 /*
@@ -270,6 +193,10 @@ void *dsm_init (dsm_cfg *cfg) {
 		}
 		waitpid(pid, NULL, 0);
 	}
+
+	// Fork cleanup daemon + arbiter as child.
+	// If I do this here, then a failing arbiter can't unmap while the 
+	// Proper one tries to map. Some mutual exclusion mechanism needed.
 
 	// Try connecting to the arbiter.
 	do {

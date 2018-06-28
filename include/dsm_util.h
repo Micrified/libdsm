@@ -110,6 +110,18 @@ void dsm_mprotect (void *address, size_t size, int flags);
 // Allocates a page-aligned slice of memory. Exits fatally on error.
 void *dsm_pageAlloc (void *address, size_t size);
 
+// Creates or opens a shared file. Sets creator flag, returns file-descriptor.
+int dsm_getSharedFile (const char *name, int *is_creator);
+
+// Sets size of shared file. Returns size on success. Panics on error.
+off_t dsm_setSharedFileSize (int fd, off_t size);
+
+// Gets size of shared file. Panics on error.
+off_t dsm_getSharedFileSize (int fd);
+
+// Maps shared file of given size to memory with protections. Panics on error.
+void *dsm_mapSharedFile (int fd, size_t size, int prot);
+
 // Unlinks a shared memory file. Exits fatally on error.
 void dsm_unlinkSharedFile (const char *name);
 

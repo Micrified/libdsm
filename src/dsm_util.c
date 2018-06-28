@@ -4,12 +4,13 @@
 #include <unistd.h>
 #include <errno.h>
 #include <semaphore.h>
-#include <sys/mman.h>
 #include <stdarg.h>
 #include <fcntl.h>
+#include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+
 #include "dsm_util.h"
 
 
@@ -279,6 +280,75 @@ void *dsm_pageAlloc (void *address, size_t size) {
 	}
 
 	return address;
+}
+
+// Creates or opens a shared file. Sets creator flag, returns file-descriptor.
+int dsm_getSharedFile (const char *name, int *is_creator) {
+	int fd, mode = S_IRUSR|S_IRUSR, creator = 0;
+
+	// Try creating exclusive file.
+	if ((fd = shm_open(name, O_CREAT|O_EXCL|O_RDWR, mode)) == -1 &&
+		errno != EEXIST) {
+		dsm_panicf("Couldn't create shared file \"%s\"!", name);
+	}
+
+	// Set creator flag.
+	creator = (fd != -1);
+
+	// Try opening existing file. Panic on error.
+	if (!creator && (fd = shm_open(name, O_RDWR, mode)) == -1) {
+		dsm_panicf("Couldn't open shared file \"%s\"!", name);
+	}
+
+	// Set creator pointer.
+	if (is_creator != NULL) {
+		*is_creator = creator;
+	}
+
+	return fd;
+}
+
+// Sets size of shared file. Returns size on success. Panics on error.
+off_t dsm_setSharedFileSize (int fd, off_t size) {
+
+	// Round size up to multiple of a page.
+	if (size % DSM_PAGESIZE != 0) {
+		size += (size % DSM_PAGESIZE);
+	}
+
+	// Set size.
+	if (ftruncate(fd, size) == -1) {
+		dsm_panicf("Couldn't resize shared file (fd = %d, size = %zu)!", 
+			fd, size);
+	}
+
+	return size;
+}
+
+// Gets size of shared file. Panics on error.
+off_t dsm_getSharedFileSize (int fd) {
+	struct stat sb;
+	
+	if (fstat(fd, &sb) == -1) {
+		dsm_panicf("Couldn't get size of shared file (fd = %d)!", fd);
+	}
+
+	return sb.st_size;
+}
+
+// Maps shared file of given size to memory with protections. Panics on error.
+void *dsm_mapSharedFile (int fd, size_t size, int prot) {
+	void *map;
+
+	// Let operating system select starting address: PAGE ALIGNED.
+	if ((map = mmap(NULL, size, prot, MAP_SHARED, fd, 0)) == MAP_FAILED) {
+		dsm_panicf("Couldn't map shared file to memory (fd = %d)!", fd);
+	}
+
+	// Zero the memory.
+	memset(map, 0, size);
+
+	return map;
 }
 
 // Unlinks a shared memory file. Exits fatally on error.
