@@ -256,8 +256,8 @@ static size_t unpack (unsigned char *b, const char *fmt, ...) {
 */
 
 
-// Marshalls: [DSM_MSG_STP_ALL, DSM_MSG_CNT_ALL, DSM_MSG_REL_BAR, DSM_MSG_WRT
-//	_NOW, DSM_MSG_ALL_STP, DSM_MSG_GOT_DATA, DSM_MSG_REQ_WRT, DSM_MSG_EXIT].
+// Marshalls: [DSM_MSG_CNT_ALL, DSM_MSG_REL_BAR, DSM_MSG_WRT_NOW, 
+//	DSM_MSG_GOT_DATA, DSM_MSG_REQ_WRT, DSM_MSG_EXIT].
 static void marshall_payload_none (int dir, dsm_msg *mp, unsigned char *b) {
 	const char *fmt = "l";
 	if (dir == 0) {
@@ -288,7 +288,7 @@ static void marshall_payload_proc (int dir, dsm_msg *mp, unsigned char *b) {
 	}
 }
 
-// Marshalls: [DSM_MSG_ALL_STP, DSM_MSG_GOT_DATA].
+// Marshalls: [DSM_MSG_GOT_DATA].
 static void marshall_payload_task (int dir, dsm_msg *mp, unsigned char *b) {
 	const char *fmt = "ll";
 	if (dir == 0) {
@@ -337,7 +337,7 @@ void init_fmaps (void) {
 	}
 
 	// Marshalling for: No payload.
-	fmap[DSM_MSG_STP_ALL] = fmap[DSM_MSG_CNT_ALL] = fmap[DSM_MSG_REL_BAR] 
+	fmap[DSM_MSG_CNT_ALL] = fmap[DSM_MSG_REL_BAR] 
 		= fmap[DSM_MSG_EXIT] = marshall_payload_none;
 
 	// Marshalling for: dsm_payload_sid.
@@ -349,7 +349,7 @@ void init_fmaps (void) {
 		fmap[DSM_MSG_REQ_WRT] = fmap[DSM_MSG_WRT_NOW] = marshall_payload_proc;
 
 	// Marshalling for: dsm_payload_task.
-	fmap[DSM_MSG_GOT_DATA] = fmap[DSM_MSG_ALL_STP] = marshall_payload_task;
+	fmap[DSM_MSG_GOT_DATA] = marshall_payload_task;
 
 	// Marshalling for: dsm_payload_data.
 	fmap[DSM_MSG_WRT_DATA] = marshall_payload_data;
@@ -430,10 +430,6 @@ void dsm_showMsg (dsm_msg *mp) {
 			printf("port = %" PRId32 "\n", mp->sid.port);
 			break;
 
-		case DSM_MSG_STP_ALL:
-			printf("Type: DSM_MSG_STP_ALL\n");
-			break;
-
 		case DSM_MSG_CNT_ALL:
 			printf("Type: DSM_MSG_CNT_ALL\n");
 			break;
@@ -466,11 +462,6 @@ void dsm_showMsg (dsm_msg *mp) {
 			printf("sid = \"%.*s\"\n", DSM_MSG_STR_SIZE,
 				mp->sid.sid_name);
 			printf("nproc = %" PRId32 "\n", mp->sid.nproc);
-			break;
-
-		case DSM_MSG_ALL_STP:
-			printf("Type: DSM_MSG_ALL_STP\n");
-			printf("nproc = %" PRId32 "\n", mp->task.nproc);
 			break;
 
 		case DSM_MSG_GOT_DATA:

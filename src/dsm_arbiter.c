@@ -70,7 +70,6 @@ void *g_shared_map;
 off_t g_map_size;
 
 
-
 /*
  *******************************************************************************
  *                          Message Wrapper Functions                          *
@@ -168,19 +167,6 @@ static void map_stp_all (int fd, dsm_proc *proc_p) {
     proc_p->flags.is_stopped = 1;
 }
 
-// Unsets stopped bit on process. Signals if not blocked or queued.
-static void map_cnt_all (int fd, dsm_proc *proc_p) {
-    UNUSED(fd);
-
-    // Unset stopped bit.
-    proc_p->flags.is_stopped = 0;
-
-    // If not blocked or queued, then signal.
-    if (proc_p->flags.is_blocked == 0 && proc_p->flags.is_queued == 0) {
-        signalProcess(proc_p->pid, SIGCONT);
-    }
-}
-
 // Unsets blocked bit on process. Sends release message.
 static void map_rel_bar (int fd, dsm_proc *proc_p) {
     UNUSED(fd);
@@ -202,42 +188,22 @@ static void map_rel_bar (int fd, dsm_proc *proc_p) {
  *******************************************************************************
 */
 
-// DSM_MSG_STP_ALL: Stop all processes instruction.
-static void handler_stp_all (int fd, dsm_msg *mp) {
-    UNUSED(mp);
-
-    // Verify state + sender.
-    ASSERT_STATE(g_started == 1 && fd == g_sock_server);
-
-    // For all processes: Set stopped bit. Signal if not yet stopped or blocked.
-    dsm_mapFuncToProcessTableEntries(g_proc_tab, map_stp_all);
-
-    // Dispatch DSM_MSG_ALL_STP. Provide number of processes stopped.
-    send_task_msg(g_sock_server, DSM_MSG_ALL_STP);
-}
 
 // DSM_MSG_CNT_ALL: Resume all processes instruction.
 static void handler_cnt_all (int fd, dsm_msg *mp) {
     UNUSED(mp);
 
     // Verify sender.
-    ASSERT_COND(fd == g_sock_server);
+    ASSERT_COND(fd == g_sock_server && g_started == 0);
 
+	// Set the started flag.
+    g_started = 1;
 
-    // Otherwise, set as started. Send start message.
-    if (g_started == 0) {
-        g_started = 1;
+    // Start global timer.
+    g_seconds_elapsed = dsm_getWallTime();
 
-        // Start global timer.
-        g_seconds_elapsed = dsm_getWallTime();
-
-        // Send each process it's GID to start it. 
-        dsm_mapFuncToProcessTableEntries(g_proc_tab, map_gid_all);
-        return;
-    }
-
-    // For all processes: Unset stopped bit. Signal if not blocked.
-    dsm_mapFuncToProcessTableEntries(g_proc_tab, map_cnt_all);
+    // Send each process it's GID to start it. 
+    dsm_mapFuncToProcessTableEntries(g_proc_tab, map_gid_all);
 }
 
 // DSM_MSG_REL_BAR: Release processes waiting at barrier.
@@ -357,12 +323,16 @@ static void handler_wrt_data (int fd, dsm_msg *mp) {
         send_msg(g_sock_server, mp);
 
     } else {
+		
+		// Map_end is used to ensure nothing is written off shared map.
+		size_t len = 0, map_end = (size_t)g_shared_map + (size_t)g_map_size;
 
         // Otherwise synchronize the shared memory.
         dsm_mprotect(g_shared_map, g_map_size, PROT_WRITE);
         void *dest = (void *)((uintptr_t)g_shared_map + mp->data.offset);
         void *src = (void *)mp->data.bytes;
-        memcpy(dest, src, 8);
+		len = MIN(MAX(len, map_end - (size_t)dest), 8);
+        memcpy(dest, src, len);
         dsm_mprotect(g_shared_map, g_map_size, PROT_READ);
     }
 
@@ -442,6 +412,7 @@ static void handler_exit (int fd, dsm_msg *mp) {
     }
 }
 
+
 /*
  *******************************************************************************
  *                              Utility Functions                              *
@@ -517,9 +488,6 @@ static void handle_new_message (int fd) {
 	// Read in data. Abort if sender disconnected (recvall returns nonzero).
 	recv_msg(fd, &msg);
 
-    //printf("[%d] New Message!\n", getpid());
-    //dsm_showMsg(&msg);
-
     // Get handler. Abort if none set.
     if ((handler = dsm_getMsgFunc(msg.type, g_fmap)) == NULL) {
         dsm_warning("Unknown message received!");
@@ -579,7 +547,7 @@ void dsm_arbiter (dsm_cfg *cfg) {
 	}
 
 	// Redirect to Xterm.
-    dsm_redirXterm();
+	dsm_redirXterm();
 
 	// Create or open the shared file.
 	fd = dsm_getSharedFile(DSM_SHM_FILE_NAME, NULL);
@@ -593,7 +561,6 @@ void dsm_arbiter (dsm_cfg *cfg) {
 
 
     // Register functions.
-    dsm_setMsgFunc(DSM_MSG_STP_ALL, handler_stp_all, g_fmap);
     dsm_setMsgFunc(DSM_MSG_CNT_ALL, handler_cnt_all, g_fmap);
     dsm_setMsgFunc(DSM_MSG_REL_BAR, handler_rel_bar, g_fmap);
     dsm_setMsgFunc(DSM_MSG_WRT_NOW, handler_wrt_now, g_fmap);
@@ -639,14 +606,8 @@ void dsm_arbiter (dsm_cfg *cfg) {
             } else {
                 handle_new_message(pfd->fd);
             }
-
-            //printf("State Update:\n");
-            //dsm_showPollable(g_pollSet);
-            //dsm_showProcessTable(g_proc_tab);
-            //printf("\n\n");
         }
-        //dsm_showProcessTable(g_proc_tab);
-        //printf("\n\n");
+
         printf("\rExchanged Messages: %u", g_msg_count); fflush(stdout);
     }
 

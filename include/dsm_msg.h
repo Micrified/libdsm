@@ -28,14 +28,12 @@ typedef enum {
  	
 	DSM_MSG_SET_SID,	// [S->D] 		Update connection info for session.
 	DSM_MSG_DEL_SID,	// [S->D]		Delete session for given session-id.
-	DSM_MSG_STP_ALL,	// [S->A] 		Stop all processes.
 	DSM_MSG_CNT_ALL,	// [S->A] 		Resume all processes.
 	DSM_MSG_REL_BAR,	// [S->A] 		Release processes waiting at barrier.
 	DSM_MSG_WRT_NOW,	// [S->A->P]	Perform write-operation.
 	DSM_MSG_SET_GID,	// [S->A->P]	Set a process global-identifier.
 
 	DSM_MSG_GET_SID,	// [A->D] 		Request connection info for session.
-	DSM_MSG_ALL_STP,	// [A->S]		All processes stopped.
 	DSM_MSG_GOT_DATA,	// [A->S]		All data is received.
 
 	DSM_MSG_ADD_PID,	// [P->A->S] 	Register process with server.
@@ -75,7 +73,7 @@ typedef struct dsm_payload_proc {
 } dsm_payload_proc;		// PACKED SIZE = 8B
 
 
-// For: [DSM_MSG_ALL_STP, DSM_MSG_GOT_DATA].
+// For: [DSM_MSG_GOT_DATA].
 typedef struct dsm_payload_task {
 	int32_t nproc;
 } dsm_payload_task;		// PACKED SIZE = 4B

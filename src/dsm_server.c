@@ -150,28 +150,6 @@ static void send_queue_wrt_now_msg (void) {
 */
 
 
-// DSM_MSG_ALL_STP: Arbiter has stopped all local processes.
-static void handler_all_stp (int fd, dsm_msg *mp) {
-    int stopped = mp->task.nproc;
-    UNUSED(fd);
-
-    // Verify state.
-    ASSERT_STATE(g_started == 1 && g_opqueue->step == STEP_WAITING_STOP_ACK);
-
-    //printf("[%d] DSM_MSG_ALL_STP [%d remaining]\n", getpid(), g_nproc - (g_proc_tab->nstopped + stopped));
-
-    // If all processes stopped. Inform writer and advance step.
-    if ((g_proc_tab->nstopped += stopped) >= g_nproc) {
-
-        // Inform head of queue it may write.
-        send_queue_wrt_now_msg();
-
-        // Set the next step.
-        g_opqueue->step = STEP_WAITING_WRT_DATA;
-        g_proc_tab->nstopped = 0;
-    }
-}
-
 // DSM_MSG_GOT_DATA: Arbiter has updated all local processes.
 static void handler_got_data (int fd, dsm_msg *mp) {
     int ready = mp->task.nproc;
@@ -179,8 +157,6 @@ static void handler_got_data (int fd, dsm_msg *mp) {
 
     // Verify state.
     ASSERT_STATE(g_started == 1 && g_opqueue->step == STEP_WAITING_SYNC_ACK);
-
-    //printf("[%d] DSM_MSG_GOT_DATA [%d remaining]\n", getpid(), g_nproc - (g_proc_tab->nready + ready));
 
     // If all processes ready. Check queue for new operation.
     if ((g_proc_tab->nready += ready) >= g_nproc) {
@@ -193,14 +169,12 @@ static void handler_got_data (int fd, dsm_msg *mp) {
 
         // If new operation pending, jump to step 2 and inform writer.
         if (!dsm_isOpQueueEmpty(g_opqueue)) {
-            //printf("[%d] Performing next queued operation!\n", getpid());
             g_opqueue->step = STEP_WAITING_WRT_DATA;
             send_queue_wrt_now_msg();
             return;
         }
 
-        //printf("[%d] Informing all to continue!\n", getpid());
-        send_easy_msg(-1, DSM_MSG_CNT_ALL);
+		// Reset step.
         g_opqueue->step = STEP_READY;
     }
 }
@@ -216,8 +190,6 @@ static void handler_add_pid (int fd, dsm_msg *mp) {
     // Register process in table.
     proc_p = dsm_setProcessTableEntry(g_proc_tab, fd, pid);
 
-    
-
     // Send response with process global identifier.
     mp->type = DSM_MSG_SET_GID;
     mp->proc.gid = proc_p->gid;
@@ -225,7 +197,7 @@ static void handler_add_pid (int fd, dsm_msg *mp) {
 
     // If all processes ready. Start session.
     if ((g_proc_tab->nready += 1) >= g_nproc) {
-        printf("[%d] Started.\n", getpid());
+        printf("[%d] Session Started!\n", getpid());
 
         // Set global started flag.
         g_started = 1;
@@ -255,17 +227,17 @@ static void handler_req_wrt (int fd, dsm_msg *mp) {
     // Queue request.
     dsm_enqueueOpQueue((uint32_t)fd, (uint32_t)pid, g_opqueue);
 
-    //printf("[%d] DSM_MSG_REQ_WRT!\n", getpid());
-
     // Start new operation sequence if none other in progress.
     if (isEmptyQueue == 1) {
 
         // Verify step.
         ASSERT_COND(g_opqueue->step == STEP_READY);
 
-        // Send stop signal and advance step.
-        send_easy_msg(-1, DSM_MSG_STP_ALL);
-        g_opqueue->step = STEP_WAITING_STOP_ACK;
+		// Inform head of queue it may write.
+		send_queue_wrt_now_msg();
+
+        // Set the next step.
+        g_opqueue->step = STEP_WAITING_WRT_DATA;
     }
 }
 
@@ -277,11 +249,8 @@ static void handler_hit_bar (int fd, dsm_msg *mp) {
     // Verify state.
     ASSERT_STATE(g_started == 1);
 
-    //printf("[%d] HANDLER_HIT_BAR\n", getpid());
-
     // If all processes have reached barrier: Release and reset.
     if ((g_proc_tab->nblocked += 1) >= g_nproc) {
-        //printf("[%d] Releasing barrier!\n", getpid());
 
         // Inform blocked processes.
         send_easy_msg(-1, DSM_MSG_REL_BAR);
@@ -301,9 +270,6 @@ static void handler_wrt_data (int fd, dsm_msg *mp) {
     // Verify sender is writer.
     ASSERT_COND(dsm_isOpQueueEmpty(g_opqueue) == 0 && fd > 0 &&
         DSM_MASK_FD(dsm_getOpQueueHead(g_opqueue)) == (uint32_t)fd);
-
-
-    //printf("[%d] Sending data to all except sender!\n", getpid());
 
     // Otherwise: Forward data to all arbiters except the sender.
     send_all_msg(mp, fd);
@@ -326,7 +292,6 @@ static void handler_post_sem (int fd, dsm_msg *mp) {
     // If semaphore does not exist, create it.
     if ((sem = dsm_getHashTableEntry(g_sem_htab, sem_name)) == NULL) {
         sem = dsm_setSemHashTableEntry(g_sem_htab, sem_name);
-        //printf("[%d] DSM_MSG_POST_SEM: Created \"%s\"\n", getpid(), sem_name);
     }
 
     // Get any process blocked on semaphore.
@@ -334,10 +299,8 @@ static void handler_post_sem (int fd, dsm_msg *mp) {
 
     // If no process found: Increment value. Else: Unblock and reset process.
     if (proc == NULL) {
-        //printf("[%d] DSM_MSG_POST_SEM: Incremented %s\n", getpid(), sem_name);
         sem->value += 1;
     } else {
-        //printf("[%d] DSM_MSG_POST_SEM: Unblocked process %d waiting on %s!\n", getpid(), proc->pid, sem_name);
         proc->sem_id = -1;
         mp->sem.pid = proc->pid;
         send_msg(pfd, mp);
@@ -359,7 +322,6 @@ static void handler_wait_sem (int fd, dsm_msg *mp) {
     // If the semaphore does not exist, create it.
     if ((sem = dsm_getHashTableEntry(g_sem_htab, sem_name)) == NULL) {
         sem = dsm_setSemHashTableEntry(g_sem_htab, sem_name);
-        //printf("[%d] DSM_MSG_WAIT_SEM: Created \"%s\"\n", getpid(), sem_name);
     }
 
     // Verify semaphore was created.
@@ -367,12 +329,10 @@ static void handler_wait_sem (int fd, dsm_msg *mp) {
 
     // If sem value > 0 : Send unblock and decrement. Else log sem under pid.
     if (sem->value > 0) {
-        //printf("[%d] DSM_MSG_WAIT_SEM: Sent unblock right away (%d > 0)!\n", getpid(), sem->value);
         mp->type = DSM_MSG_POST_SEM; // Arbiter watches for POST_SEM only.
         send_msg(fd, mp);
         sem->value--;
     } else {
-        //printf("[%d] DSM_MSG_WAIT_SEM: Registered %d as blocked under %s!\n", getpid(), proc_p->pid, sem_name);
         proc_p->sem_id = sem->sem_id;
     }
 }
@@ -383,8 +343,6 @@ static void handler_exit (int fd, dsm_msg *mp) {
 
     // Verify state.
     ASSERT_STATE(g_started == 1);
-
-    //printf("[%d] DSM_MSG_EXIT\n", getpid());
 
     // Close connection, remove from pollable set.
     dsm_removePollable(fd, g_pollSet);
@@ -462,9 +420,6 @@ static void handle_new_message (int fd) {
         dsm_unpack_msg(&msg, buf);
     }
 
-    //printf("[%d] New Message!\n", getpid());
-    //dsm_showMsg(&msg);
-
     // Get handler. Abort if none set.
     if ((handler = dsm_getMsgFunc(msg.type, g_fmap)) == NULL) {
         dsm_warning("Unknown message received!");
@@ -530,7 +485,6 @@ int main (int argc, const char *argv[]) {
     g_nproc = nproc;
 
     // Map message types to handlers.
-    dsm_setMsgFunc(DSM_MSG_ALL_STP, handler_all_stp, g_fmap);
     dsm_setMsgFunc(DSM_MSG_GOT_DATA, handler_got_data, g_fmap);
     dsm_setMsgFunc(DSM_MSG_ADD_PID, handler_add_pid, g_fmap);
     dsm_setMsgFunc(DSM_MSG_REQ_WRT, handler_req_wrt, g_fmap);
@@ -569,7 +523,7 @@ int main (int argc, const char *argv[]) {
         dsm_panicf("Couldn't listen on socket!");
     }
 
-    printf("[%d] Ready: ", getpid()); dsm_showSocketInfo(g_sock_listen);
+    printf("[%d] Session Ready: ", getpid()); dsm_showSocketInfo(g_sock_listen);
 
 	// Notify daemon session is available.
 	send_sid_msg(DSM_MSG_SET_SID, argv[1]);
@@ -592,18 +546,11 @@ int main (int argc, const char *argv[]) {
                 handle_new_message(pfd->fd);
             }
         }
-        //printf("[%d] State Update\n", getpid());
-        //dsm_showPollable(g_pollSet);
-        //dsm_showOpQueue(g_opqueue);
-        //dsm_showStringTable(g_str_tab);
-        //printf("STEP = %d\n", g_opqueue->step);
-        //dsm_showProcessTable(g_proc_tab);
-        //printf("\n\n");
     }
 
     // ------------------------------------------------------------------------
 
-    printf("[%d] Server Exiting...\n", getpid());
+    printf("[%d] Session Complete...\n", getpid());
 
     // Unregister listener socket.
     dsm_removePollable(g_sock_listen, g_pollSet);

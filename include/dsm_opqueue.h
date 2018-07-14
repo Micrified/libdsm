@@ -29,7 +29,6 @@
 // Enumeration of server states.
 typedef enum dsm_syncStep {
 	STEP_READY = 0,					// No write request is pending. All normal.
-	STEP_WAITING_STOP_ACK,			// Waiting for stop ack from all arbiters.
 	STEP_WAITING_WRT_DATA,			// Waiting for write data information.
 	STEP_WAITING_SYNC_ACK			// Waiting for data received acks.
 } dsm_syncStep;

@@ -137,10 +137,6 @@ static void dropAccess (void) {
 	// Send mesage.
 	send_msg(g_sock_io, &msg);
 	
-	// Suspend self until continued.
-	if (kill(getpid(), SIGTSTP) == -1) {
-		dsm_panic("Couldn't suspend process!\n");
-	}
 }
 
 
@@ -169,8 +165,6 @@ void dsm_sync_sigsegv (int signal, siginfo_t *info, void *ucontext) {
 	xed_uint_t len;
 	UNUSED(signal);
 
-	//printf("[%d] SIGSEGV (%p)!\n", getpid(), info->si_addr);
-
 	// Set fault address.
 	g_fault_addr = info->si_addr;
 
@@ -180,7 +174,7 @@ void dsm_sync_sigsegv (int signal, siginfo_t *info, void *ucontext) {
 		dsm_panicf("Segmentation Fault: %p", g_fault_addr);
 	}
 
-	// Grab semaphore and request write access.
+	// Request write access.
 	takeAccess();
 
 	// Get instruction length.
@@ -215,8 +209,6 @@ void dsm_sync_sigill (int signal, siginfo_t *info, void *ucontext) {
 	if (g_fault_addr == NULL) {
 		dsm_panicf("Illegal Instruction (SIGILL). Aborting!");
 	}
-
-	//printf("SIGILL!\n"); fflush(stdout);
 
 	// Restore origin instruction.
 	memcpy(prgm_counter, g_inst_buf, UD2_SIZE);
