@@ -33,6 +33,7 @@ int main (int argc, const char *argv[]) {
 	unsigned int *sum;		// Shared sum.
 	unsigned int rank = -1;	// Process rank.
     double t;               // Elapsed execution time.
+    unsigned int is_child;  // Is process child or not?
 
 	// Get process count, rounds from argument vector.
 	if (argc != 4 || sscanf(argv[1], "%u", &p) != 1 || 
@@ -44,9 +45,12 @@ int main (int argc, const char *argv[]) {
     // Run several sessions in sequence.
     while (r--) {
 
+        // Reset count to zero.
+        c = 0;
+
         // Fork to create "p" total processes.
         for (unsigned int i = 1; i < p; i++) {
-            if (fork() == 0) break;
+            if ((is_child = fork()) == 0) break;
         }
 
         // Start time.
@@ -66,25 +70,29 @@ int main (int argc, const char *argv[]) {
         // Add to the shared sum. Requires semaphore.
         dsm_wait_sem("sum_guard"); *sum += c; dsm_post_sem("sum_guard");
 
+        // Wait for everyone to compute.
+        dsm_barrier();
+
         // Stop wall time.
         t = dsm_getWallTime() - t;
 
         // Output result if rank is zero.
         if (rank == 0) {
-            printf("#primes in [0,%u] = %u (t = %lf)\n", n, *sum, t); 
+            printf("#primes in [0,%u] = %u (%.3lfs)\n", n, *sum + 1, t); 
         }
 
         // Exit DSM.
         dsm_exit();
 
-        // Rank 0: Clean up zombies.
-        if (rank == 0) {
+        // Parent: Clean up zombies.
+        if (is_child != 0) {
             for (unsigned int i = 1; i < p; i++) {
                 waitpid(-1, NULL, 0);
             }
         } else {
             break;
         }
+
     }
 
     return EXIT_SUCCESS;

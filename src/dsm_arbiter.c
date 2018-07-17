@@ -123,6 +123,8 @@ static void recv_msg (int fd, dsm_msg *mp) {
 
 	// Receive data.
 	if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
+		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
+			__LINE__, fd);
 		dsm_cpanic("recv_msg", "Participant lost connection. Unsafe state!");
 	}
 
@@ -426,7 +428,8 @@ static void handler_exit (int fd, dsm_msg *mp) {
 // Sends signal to 'pid'. 
 static void signalProcess (int pid, int signal) {
     if (kill(pid, signal) == -1) {
-        dsm_panicf("Could not send signal: %d to process %d!\n", signal, pid);
+        dsm_panicf("(%s:%d) Could not send signal: \"%s\" to process %d!\n", 
+			__FILE__, __LINE__, strsignal(signal), pid);
     }
 }
 
@@ -470,6 +473,12 @@ static void handle_new_connection (int fd) {
     struct sockaddr_storage newAddr;
     socklen_t newAddrSize = sizeof(newAddr);
     int sock_new;
+
+	// If the session already started. Drop connection and issue warning.
+	if (g_started == 1) {
+		dsm_cpanic("Connection attempt after session start!",
+			"Likely from running sessions in quick succession");
+	}
 
     // Panic if can't accept connection.
     if ((sock_new = accept(fd, (struct sockaddr *)&newAddr, &newAddrSize)) 
@@ -600,13 +609,13 @@ int main (int argc, const char *argv[]) {
     // Send exit message.
     send_easy_msg(g_sock_server, DSM_MSG_EXIT);
 
+	// Close and remove listener socket.
+    close(g_sock_listen);
+    dsm_removePollable(g_sock_listen, g_pollSet);
+
     // Close and remove server socket.
 	close(g_sock_server);
     dsm_removePollable(g_sock_server, g_pollSet);
-
-    // Close and remove listener socket.
-    close(g_sock_listen);
-    dsm_removePollable(g_sock_listen, g_pollSet);
 
     // Free the process table.
     dsm_freeProcessTable(g_proc_tab);

@@ -15,7 +15,7 @@
 
 // Ignores specified signal (Except SIGKILL and SIGSTOP). 
 void dsm_sigignore (int signal) {
-	struct sigaction sa;
+	struct sigaction sa = {0};
 
 	// Set the ignore flag.
 	sa.sa_handler = SIG_IGN;
@@ -28,7 +28,7 @@ void dsm_sigignore (int signal) {
 
 // Restores default behavior for specified signal.
 void dsm_sigdefault (int signal) {
-	struct sigaction sa;
+	struct sigaction sa = {0};
 
 	// Set the default flag.
 	sa.sa_handler = SIG_DFL;
@@ -41,7 +41,7 @@ void dsm_sigdefault (int signal) {
 
 // Installs a handler for the given signal.
 void dsm_sigaction (int signal, void (*f)(int, siginfo_t *, void *)) {
-	struct sigaction sa;
+	struct sigaction sa ={0};
 
 	sa.sa_flags = SA_SIGINFO;		// Configure to receive additional info.
 	sigemptyset(&sa.sa_mask);		// Zero mask to block no signals.

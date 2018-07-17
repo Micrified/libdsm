@@ -232,6 +232,7 @@ void *dsm_init (dsm_cfg *cfg) {
     dsm_sigaction(SIGSEGV, dsm_sync_sigsegv);
     dsm_sigaction(SIGILL, dsm_sync_sigill);
 
+
     // Protect shared page.
     dsm_mprotect(g_shared_map, g_map_size, PROT_READ);
 
