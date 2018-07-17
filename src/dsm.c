@@ -46,7 +46,7 @@ off_t g_map_size;
 static int g_gid = -1;
 
 // Communication socket.
-int g_sock_io;
+int g_sock_io = -1;
 
 
 /*
@@ -148,36 +148,54 @@ static int recv_set_gid (void) {
 
 /*
  *******************************************************************************
- *                            Function Definitions                             *
+ *                              Utility Functions                              *
  *******************************************************************************
 */
 
-// Sets new session ID, and forks the cleanup daemon and arbiter. Call as fork.
-static void fork_services (dsm_cfg *cfg) {
 
-	// Fork the daemon and arbiter.
-	if (dsm_fork() == 0) {
-		dsm_arbiter(cfg);
+// Launches the arbiter and its cleanup daemon.
+static void fork_arbiter (dsm_cfg *cfg) {
+	int pid;
+	char proc_buf[6] = {0}, size_buf[11] = {0};
+	snprintf(proc_buf, 6, "%u", cfg->nproc);
+	snprintf(size_buf, 11, "%zu", cfg->map_size);
+
+	// Fork once and exit to orphan arbiter to init.
+	if ((pid = dsm_fork()) == 0) {
+
+		// Set as new session group leader to remove terminal.
+		if (dsm_fork() == 0) {
+			setsid();
+			execlp("dsm_arbiter", "dsm_arbiter", proc_buf, cfg->sid_name,
+				cfg->d_addr, cfg->d_port, size_buf, (char *)NULL);
+			dsm_panic("Couldn't exec dsm_arbiter. Can it be found in PATH?");
+		}
+
+		// Exit the fork.
+		exit(EXIT_SUCCESS);
 	}
 
-	// Die.
-	exit(EXIT_SUCCESS);
+	waitpid(pid, NULL, 0);
 }
+
+
+/*
+ *******************************************************************************
+ *                            Function Definitions                             *
+ *******************************************************************************
+*/
 
 
 // Initializes the shared memory system. dsm_cfg is defined in dsm_arbiter.h.
 // Returns a pointer to the shared map.
 void *dsm_init (dsm_cfg *cfg) {
-    int fd, pid, first = 0, attempts = 0;
+    int fd, first = 0, attempts = 0;
 
     // Verify: Initializer not already called.
-    ASSERT_STATE(g_sock_io != -1 || g_shared_map != NULL);
+    ASSERT_STATE(g_sock_io == -1 || g_shared_map == NULL);
 
-	// Double-fork arbiter and it's cleanup daemon.
-	if ((pid = fork()) == 0) {
-		fork_services(cfg);
-		waitpid(pid, NULL, 0);
-	}
+	// Fork and exec arbiter.
+	fork_arbiter(cfg);
 
 	// Try connecting to the arbiter.
 	do {
@@ -219,10 +237,8 @@ void *dsm_init (dsm_cfg *cfg) {
 
     // Block until start signal (set_gid) is received.
     g_gid = recv_set_gid();
-    //printf("[%d] I got gid: %d\n", getpid(), dsm_getgid());
 
     // Return shared map pointer.
-    //printf("[%d] Starting...!\n", getpid());
     return g_shared_map;
 }
 
@@ -250,7 +266,9 @@ int dsm_get_gid (void) {
 // Blocks process until all other processes are synchronized at the same point.
 void dsm_barrier (void) {
     send_hit_bar();
-    kill(getpid(), SIGTSTP);
+    if (kill(getpid(), SIGTSTP) != 0) {
+		dsm_panic("Couldn't block on barrier!");
+	}
 }
 
 // Posts (up's) on the named semaphore. Semaphore is created if needed.
@@ -267,6 +285,10 @@ void dsm_wait_sem (const char *sem_name) {
 // Disconnects from shared memory system. Unmaps shared memory.
 void dsm_exit (void) {
 
+	// Reset signal handlers.
+    dsm_sigdefault(SIGSEGV);
+    dsm_sigdefault(SIGILL);
+
     // Verify: Initializer has been called.
     ASSERT_STATE(g_sock_io != -1 && g_shared_map != NULL);
 
@@ -277,7 +299,7 @@ void dsm_exit (void) {
     send_exit();
 
     // Close socket.
-    close(g_sock_io);
+    close(g_sock_io);;
 
     // Reset socket.
     g_sock_io = -1;
@@ -290,7 +312,4 @@ void dsm_exit (void) {
     // Reset shared map pointer.
     g_shared_map = NULL;
 
-    // Reset signal handlers.
-    dsm_sigdefault(SIGSEGV);
-    dsm_sigdefault(SIGILL);
 }

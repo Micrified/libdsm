@@ -32,7 +32,7 @@ int main (void) {
     }
 
     // Play ping pong.
-    for (int i = 0; i < 3125; i++) {
+    for (int i = 0; i < 5; i++) {
 
         if (dsm_get_gid() == 0) {
             printf("Ping! ...\n");

@@ -35,7 +35,7 @@ dsm_stab *dsm_initStringTable (size_t size) {
 // Registers string in table. Exits fatally on error.
 int dsm_setStringTableEntry (dsm_stab *stab, const char *s) {
     int idx = -1;
-    size_t len;
+    size_t len = 0;
 
     // Verify arguments.
     if (stab == NULL || stab->tab == NULL || s == NULL) {

@@ -279,7 +279,7 @@ static void fork_session_server (const char *sid_name, unsigned int nproc) {
 		// Set as new session group leader to remove terminal.
 		if (dsm_fork() == 0) {
 			setsid();
-			execl("./bin/dsm_server", "dsm_server", sid_name, buf, 
+			execlp("dsm_server", "dsm_server", sid_name, buf, 
 				(char *)NULL);
 		}
 

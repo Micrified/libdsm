@@ -472,12 +472,9 @@ int main (int argc, const char *argv[]) {
 
     // Verify arguments.
     if (argc != 3 || sscanf(argv[2], "%d", &nproc) != 1 || nproc < 2) {
-        fprintf(stderr, "Usage: ./%s <sid> <(nproc >= 2)>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <sid> <(nproc >= 2)>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
-
-    // Redirect to log.
-    //dsm_redirXterm();
 
     // ------------------------------------------------------------------------
 

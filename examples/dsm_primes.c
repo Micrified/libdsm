@@ -5,19 +5,10 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include "dsm/dsm.h"
+#include "dsm/dsm_util.h"
 
 #define FALSE   0
 #define TRUE    1
-
-
-// Configuration struct: dsm_arbiter.h
-dsm_cfg cfg = {
-    .nproc = 4,             // Total number of expected processes.
-    .sid_name = "Foo",      // Session-identifier: Doesn't do anything here.
-    .d_addr = "127.0.0.1",  // Daemon-address. 
-    .d_port = "4200",       // Daemon-port.
-    .map_size = 4096        // Size of shared memory to reserve.
-};
 
 
 // Returns zero if the natural number is not prime. Otherwise returns one.
@@ -35,76 +26,64 @@ static int isPrime (unsigned int p) {
 }
 
 int main (int argc, const char *argv[]) {
-    unsigned int i, j;  // Loop iterators.
-    unsigned int a, b;  // Range of primes.
-    unsigned int nproc; // Number of participant processes.
-    unsigned int rank;  // Rank of current process.
-    unsigned int cnt;   // Number of primes in interval.
-    unsigned int *sum;  // Shared variable.
+	unsigned int n = 0;		// Maximum number to check if prime.
+	unsigned int p = 0;		// Number of processes.
+	unsigned int r = 0; 	// Number of rounds.
+	unsigned int c = 0;		// Number of locally computed primes.
+	unsigned int *sum;		// Shared sum.
+	unsigned int rank = -1;	// Process rank.
+    double t;               // Elapsed execution time.
 
-    // Scan process count fromp program args.
-    if (argc != 2 || sscanf(argv[1], "%d", &nproc) != 1) {
-        fprintf(stderr, "Usage: %s <nproc>\n", argv[0]);
-        exit(EXIT_FAILURE);
-    }
+	// Get process count, rounds from argument vector.
+	if (argc != 4 || sscanf(argv[1], "%u", &p) != 1 || 
+		sscanf(argv[2], "%u", &n) != 1 || sscanf(argv[3], "%u", &r) != 1) {
+		fprintf(stderr, "Usage: %s <nproc> <max> <nrounds>\n", argv[0]);
+		exit(EXIT_FAILURE);
+	}
 
-    // Set config nproc.
-    cfg.nproc = nproc;
+    // Run several sessions in sequence.
+    while (r--) {
 
-    // Scan input.
-    printf("Enter integer numbers <a,b> such that: 1 <= a <= b: ");
-    if (scanf("%u%u", &a, &b) != 2) {
-        fprintf(stderr, "Error: Bad input!\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // Fork to create nproc processes.
-    for (unsigned int i = 1; i < nproc; i++) {
-        if (fork() == 0) break;
-    }
-
-    // Initialize DSM.
-    sum = (unsigned int *)dsm_init(&cfg);
-
-    // Set rank.
-    rank = dsm_get_gid();
-
-    if (a <= 2) {
-        cnt = 1 * (rank == 0); // Only add once!
-        a = 3;
-    }
-
-    if (a % 2 == 0) {
-        a++;
-    }
-
-    // Compute number of primes. j tracks who does what interval.
-    for (i = a, j = 0; i <= b; i += 2, j++) {
-        if ((j % nproc) == rank) {
-            cnt += isPrime(i);
+        // Fork to create "p" total processes.
+        for (unsigned int i = 1; i < p; i++) {
+            if (fork() == 0) break;
         }
-    }
 
-    // Perform a reduce. Requires synchronization semaphore for now.
-    dsm_wait_sem("x");
-    *sum += cnt;
-    dsm_post_sem("x");
+        // Start time.
+        t = dsm_getWallTime();
 
-    // Wait for all processes to catch up.
-    dsm_barrier();
+        // Initialize DSM.
+        sum = (unsigned int *)dsm_init2("primes", p, getpagesize());
 
-    // Print result if rank is zero.
-    if (rank == 0) {
-        printf("\n#primes = %u\n", *sum);
-    }
+        // Set rank.
+        rank = (unsigned int)dsm_get_gid();
 
-    // Exit DSM.
-    dsm_exit();
+        // Compute number of primes. j tracks who does what interval.
+        for (unsigned int i = 2 * rank + 1; i <= n; i += 2 * p) {
+            c += isPrime(i);
+        }
 
-    // Rank 0: Clean up zombies.
-    if (rank == 0) {
-        for (unsigned int i = 1; i < cfg.nproc; i++) {
-            waitpid(-1, NULL, 0);
+        // Add to the shared sum. Requires semaphore.
+        dsm_wait_sem("sum_guard"); *sum += c; dsm_post_sem("sum_guard");
+
+        // Stop wall time.
+        t = dsm_getWallTime() - t;
+
+        // Output result if rank is zero.
+        if (rank == 0) {
+            printf("#primes in [0,%u] = %u (t = %lf)\n", n, *sum, t); 
+        }
+
+        // Exit DSM.
+        dsm_exit();
+
+        // Rank 0: Clean up zombies.
+        if (rank == 0) {
+            for (unsigned int i = 1; i < p; i++) {
+                waitpid(-1, NULL, 0);
+            }
+        } else {
+            break;
         }
     }
 

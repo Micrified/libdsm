@@ -16,7 +16,7 @@ dsm_pi: dsm_pi.c
 	${CC} ${CFLAGS} -o dsm_pi dsm_pi.c ${LIBS}
 
 primes: dsm_primes.c
-	${CC} ${CFLAGS} -o dsm_primes dsm_primes.c ${LIBS} -lm
+	${CC} ${CFLAGS} -g -o dsm_primes dsm_primes.c ${LIBS} -lm
 
 contrast: dsm_contrast.c image.c
 	${CC} ${CFLAGS} -o dsm_contrast dsm_contrast.c image.c ${LIBS} -lm

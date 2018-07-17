@@ -112,7 +112,8 @@ int dsm_setStdout (const char *filename) {
 	close(STDOUT_FILENO);
 
 	// Create or open the file: Truncate it.
-	if ((fd = open(filename, O_CREAT|O_RDWR|O_TRUNC)) == -1) {
+	if ((fd = open(filename, O_CREAT|O_RDWR|O_TRUNC, 
+			S_IWUSR|S_IRUSR)) == -1) {
 		dsm_panic("Couldn't open/create file!");
 	}
 

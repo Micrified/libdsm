@@ -69,6 +69,9 @@ void *g_shared_map;
 // Size of the shared map.
 off_t g_map_size;
 
+// Global configuration settings (set through program arguments).
+dsm_cfg g_cfg;
+
 
 /*
  *******************************************************************************
@@ -198,6 +201,9 @@ static void handler_cnt_all (int fd, dsm_msg *mp) {
 
 	// Set the started flag.
     g_started = 1;
+
+	// Destroy the shared file.
+	dsm_unlinkSharedFile(DSM_SHM_FILE_NAME);
 
     // Start global timer.
     g_seconds_elapsed = dsm_getWallTime();
@@ -397,9 +403,6 @@ static void handler_exit (int fd, dsm_msg *mp) {
     // Verify state + sender.
     ASSERT_STATE(g_started == 1 && fd != g_sock_server);
 
-    // Remove process from table.
-    dsm_remProcessTableEntries(g_proc_tab, fd);
-
     // Close socket.
     close(fd);
 
@@ -479,7 +482,6 @@ static void handle_new_connection (int fd) {
 }
 
 
-
 // Handles a message from a pollable socket.
 static void handle_new_message (int fd) {
     dsm_msg msg = {0};
@@ -501,49 +503,32 @@ static void handle_new_message (int fd) {
 
 /*
  *******************************************************************************
- *                               Cleanup Daemon                                *
- *******************************************************************************
-*/
-
-
-// The cleanup daemon watches arbiter. When it exits, it destroys shared file.
-static void dsm_cleanup_daemon (int pid) {
-
-	// Wait for both the user process and arbiter to finish.
-	waitpid(pid, NULL, 0);
-
-	// Destroy shared resources.
-	dsm_unlinkSharedFile(DSM_SHM_FILE_NAME);
-
-	// Exit.
-	exit(EXIT_SUCCESS);
-}
-
-
-/*
- *******************************************************************************
  *                                   Arbiter                                   *
  *******************************************************************************
 */
 
 
 // Runs the arbiter main loop. Exits on success.
-void dsm_arbiter (dsm_cfg *cfg) {
+int main (int argc, const char *argv[]) {
 	int fd;						// File-descriptor for shared memory map.
     int new = 0;                // Newly active connections (for poll syscall).
-	int is_child;				// Used to store the return value of fork.
     struct pollfd *pfd = NULL;  // Pointer to a struct pollfd instance.
+
+	// Parse program arguments.
+	if (argc != 6 || sscanf(argv[1], "%u", &g_cfg.nproc) != 1 || 
+		sscanf(argv[5], "%zu", &g_cfg.map_size) != 1) {
+		dsm_cpanic("Usage: ./dsm_arbiter <nproc> <sid_name> <d_addr> "\
+			"<d_port> <map_size>", "Bad arguments!");
+	} else {
+		g_cfg.sid_name = argv[2];
+		g_cfg.d_addr = argv[3];
+		g_cfg.d_port = argv[4];
+	}
 
 	// Initialize listener socket: If already occupied, yield.
     if ((g_sock_listen = dsm_getBoundSocket(AI_PASSIVE, AF_UNSPEC, SOCK_STREAM,
         DSM_ARB_PORT)) == -1 || listen(g_sock_listen, DSM_DEF_BACKLOG) == -1) {
 		exit(EXIT_SUCCESS);
-	}
-
-	// Fork arbiter as child. Close listener socket and wait to cleanup.
-	if ((is_child = dsm_fork()) != 0) {
-		close(g_sock_listen);
-		dsm_cleanup_daemon(is_child);
 	}
 
 	// Redirect to Xterm.
@@ -554,7 +539,7 @@ void dsm_arbiter (dsm_cfg *cfg) {
 
 	// Set the file size.
 	g_map_size = dsm_setSharedFileSize(fd, MAX(DSM_SHM_FILE_SIZE, 
-		cfg->map_size));
+		g_cfg.map_size));
 
 	// Map shared file to memory.
 	g_shared_map = dsm_mapSharedFile(fd, g_map_size, PROT_READ|PROT_WRITE);
@@ -565,7 +550,6 @@ void dsm_arbiter (dsm_cfg *cfg) {
     dsm_setMsgFunc(DSM_MSG_REL_BAR, handler_rel_bar, g_fmap);
     dsm_setMsgFunc(DSM_MSG_WRT_NOW, handler_wrt_now, g_fmap);
     dsm_setMsgFunc(DSM_MSG_SET_GID, handler_set_gid, g_fmap);
-
     dsm_setMsgFunc(DSM_MSG_ADD_PID, handler_add_pid, g_fmap);
     dsm_setMsgFunc(DSM_MSG_REQ_WRT, handler_req_wrt, g_fmap);
     dsm_setMsgFunc(DSM_MSG_HIT_BAR, handler_hit_bar, g_fmap);
@@ -581,7 +565,7 @@ void dsm_arbiter (dsm_cfg *cfg) {
     g_proc_tab = dsm_initProcessTable(DSM_PTAB_NFD);
 
     // Initialize server socket.
-    g_sock_server = getServerSocket(cfg);
+    g_sock_server = getServerSocket(&g_cfg);
 
     // Register listener socket as pollable at index zero.
     dsm_setPollable(g_sock_listen, POLLIN, g_pollSet);
@@ -617,12 +601,12 @@ void dsm_arbiter (dsm_cfg *cfg) {
     send_easy_msg(g_sock_server, DSM_MSG_EXIT);
 
     // Close and remove server socket.
+	close(g_sock_server);
     dsm_removePollable(g_sock_server, g_pollSet);
-    close(g_sock_server);
 
     // Close and remove listener socket.
-    dsm_removePollable(g_sock_listen, g_pollSet);
     close(g_sock_listen);
+    dsm_removePollable(g_sock_listen, g_pollSet);
 
     // Free the process table.
     dsm_freeProcessTable(g_proc_tab);
@@ -634,8 +618,8 @@ void dsm_arbiter (dsm_cfg *cfg) {
     g_seconds_elapsed = dsm_getWallTime() - g_seconds_elapsed;
     printf("\nElapsed Seconds: %f\n", g_seconds_elapsed);
     fflush(stdout);
-    sleep(5);
-
-    // Exit.
-    exit(EXIT_SUCCESS);
+	close(1);
+	
+	// End.
+    return EXIT_SUCCESS;
 }
