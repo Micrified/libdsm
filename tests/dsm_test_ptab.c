@@ -6,9 +6,15 @@
 #include "dsm_ptab.h"
 #include "dsm_util.h"
 
+/* Test Description:
+ * This program puts the process table through a couple checks, ensuring that 
+ * processes logged with it are successfully retrieved and deleted. The sem-
+ * aphore feature is also tested.
+*/
+
 
 int main (void) {
-    dsm_proc proc, *p;
+    dsm_proc *p;
     int fd;
 
     // Initialize process table.
@@ -40,8 +46,9 @@ int main (void) {
     p->sem_id = 42;
 
     // Unset the semaphore for all processes that have it.
-    while ((fd = dsm_getProcessTableEntryWithSemID(ptab, 42, &proc)) != -1) {
-        int pid = proc.pid;
+    while ((p = dsm_getProcessTableEntryWithSemID(ptab, 42, &fd)) != NULL) {
+		int pid = p->pid;
+		assert((pid == 0 && fd == 0) || (pid == 13 && fd == 4));
         dsm_remProcessTableEntry(ptab, fd, pid);
         assert(dsm_getProcessTableEntry(ptab, fd, pid) == NULL);
     }
@@ -51,6 +58,9 @@ int main (void) {
 
     // Free the process table.
     dsm_freeProcessTable(ptab);
+
+	// Print ending message.
+	printf("Ok!\n");
 
     return 0;
 }

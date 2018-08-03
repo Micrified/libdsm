@@ -248,7 +248,7 @@ void dsm_remProcessTableEntry (dsm_ptab *ptab, int fd, int pid) {
         dsm_cpanic("dsm_remProcessTableEntry", "Invalid arguments!");
     }
 
-    // If the entry already exists, error out.
+    // If the entry does not exist, error out.
     if (dsm_getProcessTableEntry(ptab, fd, pid) == NULL) {
         dsm_cpanic("dsm_remProcessTableEntry", "No entry exists to remove!");
     }

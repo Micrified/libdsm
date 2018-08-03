@@ -26,15 +26,15 @@
 typedef enum {
 	DSM_MSG_MIN_VAL = 0,
  	
-	DSM_MSG_SET_SID,	// [S->D] 		Update connection info for session.
-	DSM_MSG_DEL_SID,	// [S->D]		Delete session for given session-id.
-	DSM_MSG_CNT_ALL,	// [S->A] 		Resume all processes.
-	DSM_MSG_REL_BAR,	// [S->A] 		Release processes waiting at barrier.
+	DSM_MSG_SET_SID,	// [S->D] 	Update connection info for session.
+	DSM_MSG_DEL_SID,	// [S->D]	Delete session for given session-id.
+	DSM_MSG_CNT_ALL,	// [S->A] 	Resume all processes.
+	DSM_MSG_REL_BAR,	// [S->A] 	Release processes waiting at barrier.
 	DSM_MSG_WRT_NOW,	// [S->A->P]	Perform write-operation.
 	DSM_MSG_SET_GID,	// [S->A->P]	Set a process global-identifier.
 
-	DSM_MSG_GET_SID,	// [A->D] 		Request connection info for session.
-	DSM_MSG_GOT_DATA,	// [A->S]		All data is received.
+	DSM_MSG_GET_SID,	// [A->D] 	Request connection info for session.
+	DSM_MSG_GOT_DATA,	// [A->S]	All data is received.
 
 	DSM_MSG_ADD_PID,	// [P->A->S] 	Register process with server.
 	DSM_MSG_REQ_WRT,	// [P->A->S]	Request write access.

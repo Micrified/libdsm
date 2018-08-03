@@ -10,6 +10,17 @@
 #include "dsm_inet.h"
 #include "dsm_util.h"
 
+
+/* Test Description:
+ * Here, a total of 15 processes are spawned. The 15 will be distributed
+ * across five sessions, named below in array session_names. The test en-
+ * sures that the processes successfully connect, receive their identifiers,
+ * and that the session is indeed correct. They each make sure they receive
+ * a start message, and then promptly send their exit messages. Overall, 
+ * the objective is to ensure the daemon can handle multiple sessions
+ * starting simulatenously.
+*/
+
 // Communication socket.
 int sock;
 
@@ -30,7 +41,6 @@ int recv_message (dsm_msg *mp, dsm_msg *cp) {
 
     // Unpack and output message.
     dsm_unpack_msg(&msg, buf);
-    dsm_showMsg(&msg);
 
     // Compare the message.
     for (int i = 0; i < DSM_MSG_SIZE; i++) {
@@ -56,18 +66,18 @@ void send_message (dsm_msg *mp) {
 }
 
 int main (int argc, char *argv[]) {
-    int rank = 0, nproc = 15;
+    int i, rank = 0, nproc = 15;
     dsm_msg msg = {0}, res = {0};
     char buf[32];
 
     // Verify arguments.
     if (argc != 3) {
-        fprintf(stderr, "usgae: ./%s <address> <port>\n", argv[0]);
+        fprintf(stderr, "usage: %s <address> <port>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
     // Perform five forks, leaving three processes per session.
-    for (int i = 1; i < nproc; i++) {
+    for (i = 1; i < nproc; i++) {
         if (fork() == 0) {
             rank = i;
             break;
@@ -114,6 +124,16 @@ int main (int argc, char *argv[]) {
     // Send exit message.
     msg.type = DSM_MSG_EXIT;
     send_message(&msg);
+
+	// Collect zombies.
+	if (rank == 0) {
+		for (i = 1; i < nproc; i++) {
+			waitpid(-1, NULL, 0);
+		}
+		printf("Ok!\n");
+	}
+
+
 
     return 0;
 }

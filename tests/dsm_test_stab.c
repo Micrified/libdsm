@@ -28,5 +28,7 @@ int main (void) {
 
     dsm_freeStringTable(stab);
 
+	printf("Ok!\n");
+
     return 0;
 }

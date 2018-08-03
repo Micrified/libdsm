@@ -125,7 +125,6 @@ static void recv_msg (int fd, dsm_msg *mp) {
 	if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
 		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
 			__LINE__, fd);
-		dsm_cpanic("recv_msg", "Participant lost connection. Unsafe state!");
 	}
 
     // Increase global message count.
