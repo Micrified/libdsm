@@ -11,18 +11,18 @@
 
 // Type describing a generic hash-table entry.
 typedef struct dsm_htab_entry {
-    void *data;                     		// Data pointer.
-    struct dsm_htab_entry *next;    		// Next linked entry.
+    void *data;                          // Data pointer.
+    struct dsm_htab_entry *next;         // Next linked entry.
 } dsm_htab_entry;
 
 // Type describing a generic hash-table.
 typedef struct dsm_htab {
-	unsigned int (*func_hash)(void *);		// Hashing function for key.
-	void (*func_free)(void *);				// Data freeing function.
-	void (*func_show)(void *);				// Data printing function.
-	int (*func_comp)(void *, void *);		// Data comparison function.
-	dsm_htab_entry **tab;					// Hash-table p Putointer.
-	size_t length;							// Hash-table bucket count.
+	unsigned int (*func_hash)(void *);   // Hashing function for key.
+	void (*func_free)(void *);           // Data freeing function.
+	void (*func_show)(void *);           // Data printing function.
+	int (*func_comp)(void *, void *);    // Data comparison function.
+	dsm_htab_entry **tab;                // Hash-table p Putointer.
+	size_t length;                       // Hash-table bucket count.
 } dsm_htab;
 
 

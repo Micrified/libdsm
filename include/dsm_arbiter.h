@@ -30,11 +30,11 @@
 
 // Session configuration structure.
 typedef struct dsm_cfg {
-    unsigned int nproc;         // Total number of expected processes.
-    const char *sid_name;		// Session identifier.
-    const char *d_addr;         // Daemon address.
-    const char *d_port;         // Daemon port.
-    size_t map_size;            // Desired memory map size (page multiple).
+    unsigned int nproc;     // Total number of expected processes.
+    const char *sid_name;   // Session identifier.
+    const char *d_addr;     // Daemon address.
+    const char *d_port;     // Daemon port.
+    size_t map_size;        // Desired memory map size (page multiple).
 } dsm_cfg;
 
 

@@ -292,7 +292,8 @@ static void handler_req_wrt (int fd, dsm_msg *mp) {
     ASSERT_STATE(g_started == 1 && fd != g_sock_server);
 
     // Verify PID is registered.
-    ASSERT_COND((proc_p = dsm_getProcessTableEntry(g_proc_tab, fd, pid)) != NULL);
+    ASSERT_COND((proc_p = dsm_getProcessTableEntry(g_proc_tab, fd, pid))
+		!= NULL);
 
     // Set process to queued.
     proc_p->flags.is_queued = 1;
@@ -310,7 +311,8 @@ static void handler_hit_bar (int fd, dsm_msg *mp) {
     ASSERT_STATE(g_started == 1 && fd != g_sock_server);
 
     // Verify PID is registered.
-    ASSERT_COND((proc_p = dsm_getProcessTableEntry(g_proc_tab, fd, pid)) != NULL);
+    ASSERT_COND((proc_p = dsm_getProcessTableEntry(g_proc_tab, fd, pid)) 
+        != NULL);
 
     // Set process to blocked.
     proc_p->flags.is_blocked = 1;
@@ -373,7 +375,8 @@ static void handler_post_sem (int fd, dsm_msg *mp) {
     }
 
     // Otherwise: Ensure process actually exists.
-    ASSERT_COND((proc_p = dsm_getProcessTableEntry(g_proc_tab, fd, pid)) != NULL);
+    ASSERT_COND((proc_p = dsm_getProcessTableEntry(g_proc_tab, fd, pid)) 
+        != NULL);
 
     // Foward POST to server.
     send_msg(g_sock_server, mp);
@@ -388,7 +391,8 @@ static void handler_wait_sem (int fd, dsm_msg *mp) {
     ASSERT_STATE(g_started == 1 && fd != g_sock_server);
 
     // Verify process exists.
-    ASSERT_COND((proc_p = dsm_getProcessTableEntry(g_proc_tab, fd, pid)) != NULL);
+    ASSERT_COND((proc_p = dsm_getProcessTableEntry(g_proc_tab, fd, pid)) 
+        != NULL);
 
     // Set blocked bit.
     proc_p->flags.is_blocked = 1;

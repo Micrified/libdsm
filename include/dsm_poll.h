@@ -13,9 +13,9 @@
 
 // Describes a set of pollable file-descriptors.
 typedef struct pollset {
-	size_t fp;			// File-descriptor array pointer.
-	size_t length;		// Length of the file-descriptor array (capacity).
-	struct pollfd *fds;	// File-descriptor array.		
+	size_t fp;             // File-descriptor array pointer.
+	size_t length;         // Length of the file-descriptor array (capacity).
+	struct pollfd *fds;    // File-descriptor array.		
 } pollset;
 
 
