@@ -42,6 +42,12 @@ void *g_shared_map;
 // Size of the shared map.
 off_t g_map_size;
 
+// Number of local processes.
+static unsigned int g_lproc;
+
+// Rank of local process.
+static unsigned int g_lrank;
+
 // The global identifier of the calling process.
 static int g_gid = -1;
 
@@ -157,7 +163,7 @@ static int recv_set_gid (void) {
 static void fork_arbiter (dsm_cfg *cfg) {
 	int pid;
 	char proc_buf[6] = {0}, size_buf[11] = {0};
-	snprintf(proc_buf, 6, "%u", cfg->nproc);
+	snprintf(proc_buf, 6, "%u", cfg->tproc);
 	snprintf(size_buf, 11, "%zu", cfg->map_size);
 
 	// Fork once and exit to orphan arbiter to init.
@@ -167,8 +173,8 @@ static void fork_arbiter (dsm_cfg *cfg) {
 		if (dsm_fork() == 0) {
 			setsid();
 			execlp("dsm_arbiter", "dsm_arbiter", proc_buf, cfg->sid_name,
-				cfg->d_addr, cfg->d_port, size_buf, (char *)NULL);
-			dsm_panic("Couldn't exec dsm_arbiter. Can it be found in PATH?");
+				cfg->d_addr, cfg->d_port, size_buf, NULL);
+			dsm_panic("Bad execlp for dsm_arbiter. Can it be found in PATH?");
 		}
 
 		// Exit the fork.
@@ -186,9 +192,11 @@ static void fork_arbiter (dsm_cfg *cfg) {
 */
 
 
-// Initializes the shared memory system. dsm_cfg is defined in dsm_arbiter.h.
-// Returns a pointer to the shared map.
-void *dsm_init (dsm_cfg *cfg) {
+/*
+ * Forks local processes; initializes DSM. Returns shared memory pointer.
+ * - cfg: Configuration structure. See dsm_arbiter.h.
+*/
+void *dsm_init2 (dsm_cfg *cfg) {
     int fd, first = 0, attempts = 0;
 
     // Verify: Initializer not already called.
@@ -196,6 +204,17 @@ void *dsm_init (dsm_cfg *cfg) {
 
 	// Fork and exec arbiter.
 	fork_arbiter(cfg);
+
+	// Set local process count.
+	g_lproc = cfg->lproc;
+
+	// Perform local forks.
+	for (unsigned int rank = 1; rank < g_lproc; rank++) {
+		if (dsm_fork() == 0) {
+			g_lrank = rank;
+			break;
+		}
+	}
 
 	// Try connecting to the arbiter.
 	do {
@@ -232,7 +251,6 @@ void *dsm_init (dsm_cfg *cfg) {
     dsm_sigaction(SIGSEGV, dsm_sync_sigsegv);
     dsm_sigaction(SIGILL, dsm_sync_sigill);
 
-
     // Protect shared page.
     dsm_mprotect(g_shared_map, g_map_size, PROT_READ);
 
@@ -243,20 +261,27 @@ void *dsm_init (dsm_cfg *cfg) {
     return g_shared_map;
 }
 
-// Initializes the shared memory system with default configuration.
-// Returns a pointer to the shared map.
-void *dsm_init2 (const char *sid, unsigned int nproc, size_t map_size) {
+/*
+ * Forks local processes; initializes DSM. Returns shared memory pointer.
+ * - sid:      Session identifier.
+ * - lproc:    Number of local processes to fork.
+ * - tproc:    Total expected process count.
+ * - map_size: Desired map size. Rounded to page size multiple (minimum 1 page).
+*/
+void *dsm_init (const char *sid, unsigned int lproc, unsigned int tproc,
+	size_t map_size) {
 
-    // Default configuration.
-    dsm_cfg cfg = {
-        .nproc = nproc,
-        .sid_name = sid,
-        .d_addr = "127.0.0.1",
-        .d_port = "4200",
-        .map_size = map_size
-    };
+	// Default configuration.
+	dsm_cfg cfg = {
+		.lproc = lproc,
+		.tproc = tproc,
+		.sid_name = sid,
+		.d_addr = "127.0.0.1",
+		.d_port = "4200",
+		.map_size = map_size
+	};
 
-    return dsm_init(&cfg);
+	return dsm_init2(&cfg);
 }
 
 // Returns the global process identifier (GID) to the caller.
@@ -272,18 +297,24 @@ void dsm_barrier (void) {
 	}
 }
 
-// Posts (up's) on the named semaphore. Semaphore is created if needed.
+/*
+ * Performs a post (up) on named semaphore. Target created if nonexistant.
+ * - sem_name: Named semaphore identifier.
+*/
 void dsm_post_sem (const char *sem_name) {
     send_sem_msg(DSM_MSG_POST_SEM, sem_name);
 }
 
-// Waits (down's) on the named semaphore. Semaphore is created if needed.
+/*
+ * Performs a wait (down) on named semaphore. Target created if nonexistent.
+ * - sem_name: Named semaphore identifier.
+*/
 void dsm_wait_sem (const char *sem_name) {
     send_sem_msg(DSM_MSG_WAIT_SEM, sem_name);
     recv_post_sem(sem_name);
 }
 
-// Disconnects from shared memory system. Unmaps shared memory.
+// Disconnects from DSM. Unmaps shared memory. Collects local process forks.
 void dsm_exit (void) {
 
 	// Reset signal handlers.
@@ -300,7 +331,7 @@ void dsm_exit (void) {
     send_exit();
 
     // Close socket.
-    close(g_sock_io);;
+    close(g_sock_io);
 
     // Reset socket.
     g_sock_io = -1;
@@ -312,5 +343,14 @@ void dsm_exit (void) {
 
     // Reset shared map pointer.
     g_shared_map = NULL;
+
+	// Collect zombies.
+	if (g_lrank == 0) {
+		while (--g_lproc) {
+			waitpid(-1, NULL, 0);
+		}
+	} else {
+		exit(EXIT_SUCCESS);
+	}
 
 }

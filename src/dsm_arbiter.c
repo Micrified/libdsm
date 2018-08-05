@@ -450,7 +450,7 @@ static int getServerSocket (dsm_cfg *cfg) {
 	// Configure session request.
 	msg.type = DSM_MSG_GET_SID;
 	snprintf(msg.sid.sid_name, DSM_MSG_STR_SIZE, "%s", cfg->sid_name);
-	msg.sid.nproc = cfg->nproc;
+	msg.sid.nproc = cfg->tproc;
 	
 	// Dispatch session request.
 	send_msg(sock, &msg);
@@ -527,7 +527,7 @@ int main (int argc, const char *argv[]) {
     struct pollfd *pfd = NULL;  // Pointer to a struct pollfd instance.
 
 	// Parse program arguments.
-	if (argc != 6 || sscanf(argv[1], "%u", &g_cfg.nproc) != 1 || 
+	if (argc != 6 || sscanf(argv[1], "%u", &g_cfg.tproc) != 1 || 
 		sscanf(argv[5], "%zu", &g_cfg.map_size) != 1) {
 		dsm_cpanic("Usage: ./dsm_arbiter <nproc> <sid_name> <d_addr> "\
 			"<d_port> <map_size>", "Bad arguments!");
