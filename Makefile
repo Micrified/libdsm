@@ -14,7 +14,7 @@ SERVER_FILES=${SDIR}dsm_server.c ${SDIR}dsm_msg.c ${SDIR}dsm_htab.c ${SDIR}dsm_i
 
 ARBITER_FILES=${SDIR}dsm_arbiter.c ${SDIR}dsm_msg.c ${SDIR}dsm_inet.c ${SDIR}dsm_poll.c ${SDIR}dsm_ptab.c ${SDIR}dsm_util.c
 
-DSM_FILES=${SDIR}dsm.c ${SDIR}dsm_sync.c ${SDIR}dsm_signal.c ${SDIR}dsm_msg.c ${SDIR}dsm_inet.c ${SDIR}dsm_util.c
+DSM_FILES=${SDIR}dsm.c ${SDIR}dsm_sync.c ${SDIR}dsm_signal.c ${SDIR}dsm_msg.c ${SDIR}dsm_inet.c ${SDIR}dsm_util.c ${SDIR}dsm_holes.c
 
 
 # BUILD RULES
@@ -71,8 +71,8 @@ uninstall:
 # CLEAN RULES
 
 clean:
+	test -f ./libdsm.a && rm ./libdsm.a
 	test -f /dev/shm/dsm_file && rm /dev/shm/dsm_file
 	test -f /dev/shm/sem.dsm_start && rm /dev/shm/sem.dsm_start
-	test -f ./libdsm.a && rm ./libdsm.a
 	rm ${ODIR}*.o
 

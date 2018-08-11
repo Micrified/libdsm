@@ -13,6 +13,7 @@
 #include "dsm_util.h"
 #include "dsm_signal.h"
 #include "dsm_sync.h"
+#include "dsm_holes.h"
 
 
 /*
@@ -41,6 +42,9 @@ void *g_shared_map;
 
 // Size of the shared map.
 off_t g_map_size;
+
+// Pointer to shared memory holes list.
+dsm_hole *g_shm_holes;
 
 // Number of local processes.
 static unsigned int g_lproc;
@@ -340,6 +344,9 @@ void dsm_exit (void) {
     if (munmap(g_shared_map, g_map_size) == -1) {
         dsm_panic("Couldn't unmap shared file!");
     }
+
+	// Free the shared memory holes.
+	dsm_free_holes(g_shm_holes);
 
     // Reset shared map pointer.
     g_shared_map = NULL;

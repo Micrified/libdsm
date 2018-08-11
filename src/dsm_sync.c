@@ -22,7 +22,10 @@
 
 
 // Length of the UD2 instruction for isa: x86-64.
-#define UD2_SIZE	2
+#define UD2_SIZE		2
+
+// Length of the largest addressable system type (64-bit).
+#define MAX_TYPE_SIZE	64
 
 
 /*
@@ -38,11 +41,17 @@ xed_state_t g_xed_machine_state;
 // Instruction buffer.
 unsigned char g_inst_buf[UD2_SIZE];
 
+// Copy buffer.
+unsigned char g_mem_buf[MAX_TYPE_SIZE];
+
 // UD2 instruction opcodes for isa: x86-64.
 unsigned char g_ud2_opcodes[UD2_SIZE] = {0x0f, 0x0b};
 
 // Pointer to memory address at which fault occurred. 
 void *g_fault_addr;
+
+// Boolean: Indicates if access should be synchronized.
+unsigned int g_skip_sync;
 
 
 /*
@@ -123,7 +132,7 @@ static void takeAccess (void) {
 }
 
 // Releases access: Messages the arbiter, then suspends itself until continued.
-static void dropAccess (void) {
+static void dropAccess (size_t modified_size) {
 	dsm_msg msg = {.type = DSM_MSG_WRT_DATA};
 
 	// Reset default behavior for SIGTSTP.
@@ -131,7 +140,7 @@ static void dropAccess (void) {
 
 	// Configure message: Size assumed to be 64 bits.
 	msg.data.offset = (uintptr_t)g_fault_addr - (uintptr_t)g_shared_map;
-	msg.data.size = sizeof(int64_t);
+	msg.data.size = modified_size;
 	memcpy(msg.data.bytes, g_fault_addr, msg.data.size);
 
 	// Send mesage.
@@ -163,10 +172,14 @@ void dsm_sync_sigsegv (int signal, siginfo_t *info, void *ucontext) {
 	ucontext_t *context = (ucontext_t *)ucontext;
 	void *prgm_counter = (void *)context->uc_mcontext.gregs[REG_RIP];
 	xed_uint_t len;
+	off_t offset, fault_offset;
 	UNUSED(signal);
 
 	// Set fault address.
 	g_fault_addr = info->si_addr;
+
+	// Compute fault offset.
+	fault_offset = (uintptr_t)g_fault_addr - (uintptr_t)g_shared_map;
 
 	// Verify address is within shared page. Otherwise panic.
 	if ((uintptr_t)g_fault_addr < (uintptr_t)g_shared_map || 
@@ -174,8 +187,16 @@ void dsm_sync_sigsegv (int signal, siginfo_t *info, void *ucontext) {
 		dsm_panicf("Segmentation Fault: %p", g_fault_addr);
 	}
 
-	// Request write access.
-	takeAccess();
+	// Determine whether or not access must be requested.
+	g_skip_sync = dsm_in_hole(fault_offset, MAX_TYPE_SIZE, g_shm_holes);
+
+	// Request write access if the addressable range wasn't in a hole.
+	if (g_skip_sync == 0) {
+		takeAccess();
+	}
+
+	// Make copy of memory before modification (do after access granted).
+	memcpy(g_mem_buf, g_fault_addr, MAX_TYPE_SIZE);
 
 	// Get instruction length.
 	len = getInstLength(prgm_counter, &g_xed_machine_state);
@@ -187,7 +208,7 @@ void dsm_sync_sigsegv (int signal, siginfo_t *info, void *ucontext) {
 	memcpy(g_inst_buf, nextInst, UD2_SIZE);
 
 	// Assign full access permissions to program text page.
-	off_t offset = (uintptr_t)nextInst % (uintptr_t)DSM_PAGESIZE;
+	offset = (uintptr_t)nextInst % (uintptr_t)DSM_PAGESIZE;
 	void *pageStart = (void *)((uintptr_t)nextInst - offset);
 	dsm_mprotect(pageStart, DSM_PAGESIZE, PROT_READ|PROT_WRITE|PROT_EXEC);
 
@@ -216,8 +237,13 @@ void dsm_sync_sigill (int signal, siginfo_t *info, void *ucontext) {
 	// Protect shared page again.
 	dsm_mprotect(g_shared_map, g_map_size, PROT_READ);
 
-	// Release lock and send sychronization information.
-	dropAccess();
+	// Compute the size of the modified memory.
+	size_t modified_size = dsm_memcmp(g_fault_addr, g_mem_buf, MAX_TYPE_SIZE);
+
+	// Release lock and send synchronization info if needed.
+	if (g_skip_sync == 0) {
+		dropAccess(modified_size);
+	}
 
 	// Unset fault address.
 	g_fault_addr = NULL;

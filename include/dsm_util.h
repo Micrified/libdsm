@@ -125,6 +125,9 @@ void *dsm_mapSharedFile (int fd, size_t size, int prot);
 // Unlinks a shared memory file. Exits fatally on error.
 void dsm_unlinkSharedFile (const char *name);
 
+// Returns the size of the largest change between two byte buffers.
+size_t dsm_memcmp (unsigned char a[], unsigned char b[], size_t len);
+
 
 /*
  *******************************************************************************

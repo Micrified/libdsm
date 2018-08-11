@@ -2,6 +2,7 @@
 #define DSM_SYNC_H
 
 #include <signal.h>
+#include "dsm_holes.h"
 
 
 /*
@@ -16,6 +17,9 @@ extern void *g_shared_map;
 
 // Size of the shared map.
 extern off_t g_map_size;
+
+// Pointer to shared memory holes list.
+extern dsm_hole *g_shm_holes;
 
 // Communication socket.
 extern int g_sock_io;

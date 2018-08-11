@@ -359,6 +359,16 @@ void dsm_unlinkSharedFile (const char *name) {
 	}
 }
 
+// Returns the size of the largest change between two byte buffers.
+size_t dsm_memcmp (unsigned char a[], unsigned char b[], size_t len) {
+	unsigned int i;
+
+	// Start from the end of the buffer; move to start until change found.
+	for (i = 0; (i < len) && (a[len - i - 1] == b[len - i - 1]); ++i);
+
+	return (len - i);
+}
+
 
 /*
  *******************************************************************************
