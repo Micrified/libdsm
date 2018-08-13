@@ -27,7 +27,7 @@ typedef void (*dsm_marshall_func) (int dir, dsm_msg *, unsigned char *);
 */
 
 
-// Map: dsm_msg_t -> dsm_marshall_func.
+// Table mapping dsm_msg_t to dsm_marshall_func.
 static dsm_marshall_func fmap[DSM_MSG_MAX_VAL];
 
 
@@ -124,10 +124,10 @@ static int64_t unpack_i64 (unsigned char *b, int64_t *ip) {
  * Long (int32_t):  	 	"l"
  * Quad (int64_t):  	 	"q"
  * String (char):   	 	"s" (fixed size).
- * Bytes (unsigned char):	"b" (fixed size of 8 bytes).
+ * Bytes (unsigned char):	"b" (fixed to DSM_MSG_DATA_SIZE bytes).
  * Returns total number of bytes written. Truncates strings if too long.
 */
-static size_t pack (unsigned char *b, const char *fmt, ...) {
+static size_t pack (unsigned char *, const char *fmt, ...) {
 	va_list ap;
 	size_t size = 0, written = 0;
 
@@ -162,8 +162,8 @@ static size_t pack (unsigned char *b, const char *fmt, ...) {
 
 			case 'b':
 				y = va_arg(ap, unsigned char *);
-				memcpy(b, y, 8);
-				written = 8;
+				memcpy(b, y, DSM_MSG_DATA_SIZE);
+				written = DSM_MSG_DATA_SIZE;
 				break;
 
             default:
@@ -190,10 +190,10 @@ static size_t pack (unsigned char *b, const char *fmt, ...) {
  * Long (int32_t):  	 	"l"
  * Quad (int64_t):  	 	"q"
  * String (char):   	 	"s" (fixed size).
- * Bytes (unsigned char):	"b" (fixed size of 8 bytes).
+ * Bytes (unsigned char):	"b" (fixed to DSM_MSG_DATA_SIZE bytes).
  * Returns total number of bytes written. Truncates strings if too long.
 */
-static size_t unpack (unsigned char *b, const char *fmt, ...) {
+static size_t unpack (unsigned char b[], const char *fmt, ...) {
 	va_list ap;
 	size_t size = 0, read = 0;
 
@@ -227,8 +227,8 @@ static size_t unpack (unsigned char *b, const char *fmt, ...) {
 
 			case 'b':
 				y = va_arg(ap, unsigned char *);
-				memcpy(y, b, 8);
-				read = 8;
+				memcpy(y, b, DSM_MSG_DATA_SIZE);
+				read = DSM_MSG_DATA_SIZE;
 				break;
 
             default:
@@ -249,6 +249,7 @@ static size_t unpack (unsigned char *b, const char *fmt, ...) {
     return size;
 }
 
+
 /*
  *******************************************************************************
  *                      Marshalling Function Definitions                       *
@@ -256,29 +257,27 @@ static size_t unpack (unsigned char *b, const char *fmt, ...) {
 */
 
 
-// Marshalls: [DSM_MSG_CNT_ALL, DSM_MSG_REL_BAR, DSM_MSG_WRT_NOW, 
-//	DSM_MSG_GOT_DATA, DSM_MSG_REQ_WRT, DSM_MSG_EXIT].
+// Marshalls: [CNT_ALL, REL_BAR, WRT_END, EXIT].
 static void marshall_payload_none (int dir, dsm_msg *mp, unsigned char *b) {
 	const char *fmt = "l";
 	if (dir == 0) {
-		pack(b, fmt, mp->type);
+		pack(b, fmt, mp->type); 
 	} else {
 		unpack(b, fmt, &(mp->type));
 	}
 }
 
-// Marshalls: [DSM_MSG_GET_SID, DSM_MSG_SET_SID, DSM_MSG_DEL_SID].
+// Marshalls: [GET_SID, SET_SID, DEL_SID].
 static void marshall_payload_sid (int dir, dsm_msg *mp, unsigned char *b) {
 	const char *fmt = "lsl";
 	if (dir == 0) {
 		pack(b, fmt, mp->type, mp->sid.sid_name, mp->sid.port);
 	} else {
-		unpack(b, fmt, &(mp->type), mp->sid.sid_name, &(mp->sid.port));
+		unpack(b, fmt, &(mp->type), mp->sid.sid_name, &(mp->port));
 	}
 }
 
-// Marshalls: [DSM_MSG_ADD_PID, DSM_MSG_SET_GID, DSM_MSG_REQ_WRT, 
-//	DSM_MSG_HIT_BAR].
+// Marshalls: [ADD_PID, SET_GID, REQ_WRT, WRT_NOW].
 static void marshall_payload_proc (int dir, dsm_msg *mp, unsigned char *b) {
 	const char *fmt = "lll";
 	if (dir == 0) {
@@ -288,7 +287,7 @@ static void marshall_payload_proc (int dir, dsm_msg *mp, unsigned char *b) {
 	}
 }
 
-// Marshalls: [DSM_MSG_GOT_DATA].
+// Marshalls: [GOT_DATA].
 static void marshall_payload_task (int dir, dsm_msg *mp, unsigned char *b) {
 	const char *fmt = "ll";
 	if (dir == 0) {
@@ -298,18 +297,19 @@ static void marshall_payload_task (int dir, dsm_msg *mp, unsigned char *b) {
 	}
 }
 
-// Marshalls: [DSM_MSG_GOT_DATA].
+// Marshalls: [WRT_DATA]. (Note: Buffer is NOT automatically unpacked).
 static void marshall_payload_data (int dir, dsm_msg *mp, unsigned char *b) {
-	const char *fmt = "lllb";
+	const char *pack_fmt = "lqqb", *unpack_fmt = "lqq";
 	if (dir == 0) {
-		pack(b, fmt, mp->type, mp->data.offset, mp->data.size, mp->data.bytes);
-	} else {
-		unpack(b, fmt, &(mp->type), &(mp->data.offset), &(mp->data.size), 
+		pack(b, pack_fmt, mp->type, mp->data.offset, mp->data.size, 
 			mp->data.bytes);
+	} else {
+		unpack(b, unpack_fmt, &(mp->type), &(mp->data.offset), 
+			&(mp->data.size));
 	}
 }
 
-// Marshalls: [DSM_MSG_POST_SEM, DSM_MSG_WAIT_SEM].
+// Marshalls: [POST_SEM, WAIT_SEM].
 static void marshall_payload_sem (int dir, dsm_msg *mp, unsigned char *b) {
 	const char *fmt = "lsl";
 	if (dir == 0) {
@@ -327,60 +327,57 @@ static void marshall_payload_sem (int dir, dsm_msg *mp, unsigned char *b) {
 */
 
 
-// Initializes all function maps.
+// Initializes the function maps. 
 void init_fmaps (void) {
 	static int init = 0;
 
-	// Don't re-initialize.
+	// Only initialize once.
 	if (init == 1) {
 		return;
+	} else {
+		init = 1;
 	}
 
-	// Marshalling for: No payload.
-	fmap[DSM_MSG_CNT_ALL] = fmap[DSM_MSG_REL_BAR] 
-		= fmap[DSM_MSG_EXIT] = marshall_payload_none;
+	// Marshalling: No payloads.
+	fmap[DSM_MSG_CNT_ALL] = fmap[DSM_MSG_REL_BAR]
+		= fmap[DSM_MSG_WRT_END] = fmap[DSM_MSG_EXIT] = marshall_payload_none;
 
-	// Marshalling for: dsm_payload_sid.
-	fmap[DSM_MSG_SET_SID] = fmap[DSM_MSG_DEL_SID] = fmap[DSM_MSG_GET_SID] = 
-		marshall_payload_sid;
+	// Marshalling: dsm_payload_sid.
+	fmap[DSM_MSG_SET_SID] = fmap[DSM_MSG_GET_SID]
+		= fmap[DSM_MSG_DEL_SID] = marshall_payload_sid;
 
-	// Marshalling for: dsm_payload_proc.
-	fmap[DSM_MSG_ADD_PID] = fmap[DSM_MSG_SET_GID] = fmap[DSM_MSG_HIT_BAR] =
-		fmap[DSM_MSG_REQ_WRT] = fmap[DSM_MSG_WRT_NOW] = marshall_payload_proc;
+	// Marshalling: dsm_payload_proc.
+	fmap[DSM_MSG_ADD_PID] = fmap[DSM_MSG_SET_GID]
+		= fmap[DSM_MSG_HIT_BAR] = fmap[DSM_MSG_REQ_WRT]
+		= fmap[DSM_MSG_WRT_NOW] = marshall_payload_proc;
 
-	// Marshalling for: dsm_payload_task.
+	// Marshalling: dsm_paylaod_task.
 	fmap[DSM_MSG_GOT_DATA] = marshall_payload_task;
 
-	// Marshalling for: dsm_payload_data.
+	// Marshalling: dsm_payload_data.
 	fmap[DSM_MSG_WRT_DATA] = marshall_payload_data;
 
-	// Marshalling for: dsm_payload_sem.
+	// Marshalling: dsm_payload_sem.
 	fmap[DSM_MSG_POST_SEM] = fmap[DSM_MSG_WAIT_SEM] = marshall_payload_sem;
-	
-	// Set as initialized.
-	init = 1;
+
 }
 
 
 /*
  *******************************************************************************
- *                         Public Function Definitions                         *
+ *                            Function Definitions                             *
  *******************************************************************************
 */
 
 
-// Marshalls given message to buffer. Buffer must be at least DSM_MSG_SIZE.
+// Marshalls message to buffer. Buffer size must be at least DSM_MSG_SIZE.
 void dsm_pack_msg (dsm_msg *mp, unsigned char *b) {
 	init_fmaps();
 	dsm_marshall_func f;
 
 	// Verify input.
-	if (mp == NULL || b == NULL) {
-		dsm_cpanic("dsm_pack_msg", "NULL parameter(s)!");
-	}
-	if (mp->type <= DSM_MSG_MIN_VAL || mp->type >= DSM_MSG_MAX_VAL) {
-		dsm_cpanic("dsm_pack_msg", "Invalid message type!");
-	}
+	ASSERT_COND((mp != NULL) && (b != NULL));
+	ASSERT_COND((mp->type > DSM_MSG_MIN_VAL) && (mp->type < DSM_MSG_MAX_VAL));
 
 	// Sanitize buffer.
 	memset(b, 0, DSM_MSG_SIZE);
@@ -390,38 +387,35 @@ void dsm_pack_msg (dsm_msg *mp, unsigned char *b) {
 	f(0, mp, b);
 }
 
-// Unmarshalls message of type to mp. Buffer must be at least DSM_MSG_SIZE.
+// Unmarshalls message from buffer. Buffer size must be at least DSM_MSG_SIZE.
 void dsm_unpack_msg (dsm_msg *mp, unsigned char *b) {
 	init_fmaps();
 	dsm_marshall_func f;
 
+	// Verify input.
+	ASSERT_COND((mp != NULL) && (b != NULL));
+
 	// Extract and set type.
 	unpack(b, "l", &(mp->type));
 
-	// Verify input.
-	if (mp == NULL || b == NULL) {
-		dsm_cpanic("dsm_unpack_msg", "NULL parameter(s)!");
-	}
-	if (mp->type <= DSM_MSG_MIN_VAL || mp->type >= DSM_MSG_MAX_VAL) {
-		dsm_cpanic("dsm_unpack_msg", "Invalid message type!");
-	}
+	// Verify message type.
+	ASSERT_COND((mp->type > DSM_MSG_MIN_VAL) && (mp->type < DSM_MSG_MAX_VAL));
 
 	// Execute mapped function.
 	f = fmap[mp->type];
 	f(1, mp, b);
 }
 
-// [DEBUG] Prints the contents of a message.
-void dsm_showMsg (dsm_msg *mp) {
-	printf("======================== MSG ========================\n");
-
-	// Don't access NULL messages.
+// [DEBUG] Prints message.
+void dsm_show_msg (dsm_msg *mp) {
+	printf("=============== MSG ===============\n");
+	
+	// Null Messages.
 	if (mp == NULL) {
 		printf("NULL\n");
-		return;
+		goto end;
 	}
 
-	// Print contents.
 	switch (mp->type) {
 		case DSM_MSG_SET_SID:
 			printf("Type: DSM_MSG_SET_SID\n");
@@ -429,118 +423,97 @@ void dsm_showMsg (dsm_msg *mp) {
 				mp->sid.sid_name);
 			printf("port = %" PRId32 "\n", mp->sid.port);
 			break;
-
-		case DSM_MSG_CNT_ALL:
-			printf("Type: DSM_MSG_CNT_ALL\n");
-			break;
-
-		case DSM_MSG_REL_BAR:
-			printf("Type: DSM_MSG_REL_BAR\n");
-			break;
-
-		case DSM_MSG_WRT_NOW:
-			printf("Type: DSM_MSG_WRT_NOW\n");
-			printf("pid = %" PRId32 "\n", mp->proc.pid);
-			printf("gid = %" PRId32 "\n", mp->proc.gid);
-			break;
-
-		case DSM_MSG_SET_GID:
-			printf("Type: DSM_MSG_SET_GID\n");
-			printf("pid = %" PRId32 "\n", mp->proc.pid);
-			printf("gid = %" PRId32 "\n", mp->proc.gid);
-			break;
-
-		case DSM_MSG_GET_SID:
-			printf("Type: DSM_MSG_GET_SID\n");
-			printf("sid = \"%.*s\"\n", DSM_MSG_STR_SIZE,
-				mp->sid.sid_name);
-			printf("nproc = %" PRId32 "\n", mp->sid.nproc);
-			break;
-
 		case DSM_MSG_DEL_SID:
 			printf("Type: DSM_MSG_DEL_SID\n");
 			printf("sid = \"%.*s\"\n", DSM_MSG_STR_SIZE,
 				mp->sid.sid_name);
 			printf("nproc = %" PRId32 "\n", mp->sid.nproc);
 			break;
-
+		case DSM_MSG_CNT_ALL:
+			printf("Type: DSM_MSG_CNT_ALL\n");
+			break;
+		case DSM_MSG_REL_BAR:
+			printf("Type: DSM_MSG_REL_BAR\n");
+			break;
+		case DSM_MSG_WRT_NOW:
+			printf("Type: DSM_MSG_WRT_NOW\n");
+			printf("pid = %" PRId32 "\n", mp->proc.pid);
+			printf("gid = %" PRId32 "\n", mp->proc.gid);
+			break;
+		case DSM_MSG_SET_GID:
+			printf("Type: DSM_MSG_SET_GID\n");
+			printf("pid = %" PRId32 "\n", mp->proc.pid);
+			printf("gid = %" PRId32 "\n", mp->proc.gid);
+			break;
+		case DSM_MSG_GET_SID:
+			printf("Type: DSM_MSG_GET_SID\n");
+			printf("sid = \"%.*s\"\n", DSM_MSG_STR_SIZE,
+				mp->sid.sid_name);
+			printf("nproc = %" PRId32 "\n", mp->sid.nproc);
+			break;
 		case DSM_MSG_GOT_DATA:
 			printf("Type: DSM_MSG_GOT_DATA\n");
 			printf("nproc = %" PRId32 "\n", mp->task.nproc);
 			break;
-
 		case DSM_MSG_ADD_PID:
 			printf("Type: DSM_MSG_ADD_PID\n");
 			printf("pid = %" PRId32 "\n", mp->proc.pid);
 			break;
-
 		case DSM_MSG_REQ_WRT:
 			printf("Type: DSM_MSG_REQ_WRT\n");
 			printf("pid = %" PRId32 "\n", mp->proc.pid);
 			break;
-
 		case DSM_MSG_HIT_BAR:
 			printf("Type: DSM_MSG_HIT_BAR\n");
 			printf("pid = %" PRId32 "\n", mp->proc.pid);
 			break;
-
-		case DSM_MSG_WRT_DATA: {
+		case DSM_MSG_WRT_DATA:
 			printf("Type: DSM_MSG_WRT_DATA\n");
 			printf("offset = %" PRId32 "\n", mp->data.offset);
 			printf("size = %" PRId32 "\n", mp->data.size);
-			printf("data = ");
-			for (int i = 0; i < MIN(mp->data.size, 8); i++) {
-				printf("%02x ", mp->data.bytes[i]);
-			}
-			printf("\n");
 			break;
-		}
-
+		case DSM_MSG_WRT_END:
+			printf("Type: DSM_MSG_WRT_END\n");
+			break;
 		case DSM_MSG_POST_SEM:
 			printf("Type: DSM_MSG_POST_SEM\n");
 			printf("pid = %" PRId32 "\n", mp->sem.pid);
 			printf("sem_name = \"%.*s\"\n", DSM_MSG_STR_SIZE,
 				mp->sem.sem_name);
 			break;
-
 		case DSM_MSG_WAIT_SEM:
 			printf("Type: DSM_MSG_WAIT_SEM\n");
 			printf("pid = %" PRId32 "\n", mp->sem.pid);
 			printf("sem_name = \"%.*s\"\n", DSM_MSG_STR_SIZE, 
 				mp->sem.sem_name);
 			break;
-
 		case DSM_MSG_EXIT:
 			printf("Type: DSM_MSG_EXIT\n");
 			break;
-
 		default:
-			printf("Type: <UNKNOWN>\n");		
+			printf("<UNKNOWN>\n");
 	}
-	
-	printf("=====================================================\n");
+
+	end:
+	printf("===================================\n");
 }
 
-// Sets function for given message type in map. Returns nonzero on error.
+// Assigns function to given message type. Exits on error.
 void dsm_setMsgFunc (dsm_msg_t type, dsm_msg_func func, dsm_msg_func *fmap) {
-	
+
 	// Verify type.
-	if (type <= DSM_MSG_MIN_VAL || type >= DSM_MSG_MAX_VAL) {
-		dsm_cpanic("dsm_setMsgFunc", "Message type out of range!");
-	}
+	ASSERT_COND((type > DSM_MSG_MIN_VAL) && (type < DSM_MSG_MAX_VAL));
 
 	// Install function.
 	fmap[type] = func;
 }
 
-// Returns function pointer for given message type. Returns NULL on error.
+// Returns function for given message type. Exits on error.
 dsm_msg_func dsm_getMsgFunc (dsm_msg_t type, dsm_msg_func *fmap) {
 
 	// Verify type.
-	if (type <= DSM_MSG_MIN_VAL || type >= DSM_MSG_MAX_VAL) {
-		dsm_cpanic("dsm_setMsgFunc", "Message type out of range!");
-	}
+	ASSERT_COND((type > DSM_MSG_MIN_VAL) && (type < DSM_MSG_MAX_VAL));
 
-	// Return function.
+	// Install function.
 	return fmap[type];
 }
