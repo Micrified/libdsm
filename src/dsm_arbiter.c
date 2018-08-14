@@ -136,8 +136,8 @@ static void recv_msg (int fd, dsm_msg *mp) {
 	}
 
 	// Otherwise read in the remaining data.
-	if (dsm_recvall(fd, buf + DSM_MSG_SIZE, DSM_MSG_DATA_SIZE - DSM_MSG_SIZE)
-		!= 0) {
+	if (dsm_recvall(fd, buf + DSM_MSG_SIZE, 
+		DSM_MSG_DATA_SIZE - DSM_MSG_SIZE - DSM_MSG_DATA_OFF) != 0) {
 		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
 			__LINE__, fd);
 	}
