@@ -127,7 +127,7 @@ static int64_t unpack_i64 (unsigned char *b, int64_t *ip) {
  * Bytes (unsigned char):	"b" (fixed to DSM_MSG_DATA_SIZE bytes).
  * Returns total number of bytes written. Truncates strings if too long.
 */
-static size_t pack (unsigned char *, const char *fmt, ...) {
+static size_t pack (unsigned char *b, const char *fmt, ...) {
 	va_list ap;
 	size_t size = 0, written = 0;
 
@@ -193,7 +193,7 @@ static size_t pack (unsigned char *, const char *fmt, ...) {
  * Bytes (unsigned char):	"b" (fixed to DSM_MSG_DATA_SIZE bytes).
  * Returns total number of bytes written. Truncates strings if too long.
 */
-static size_t unpack (unsigned char b[], const char *fmt, ...) {
+static size_t unpack (unsigned char *b, const char *fmt, ...) {
 	va_list ap;
 	size_t size = 0, read = 0;
 
@@ -273,7 +273,7 @@ static void marshall_payload_sid (int dir, dsm_msg *mp, unsigned char *b) {
 	if (dir == 0) {
 		pack(b, fmt, mp->type, mp->sid.sid_name, mp->sid.port);
 	} else {
-		unpack(b, fmt, &(mp->type), mp->sid.sid_name, &(mp->port));
+		unpack(b, fmt, &(mp->type), mp->sid.sid_name, &(mp->sid.port));
 	}
 }
 
@@ -297,9 +297,10 @@ static void marshall_payload_task (int dir, dsm_msg *mp, unsigned char *b) {
 	}
 }
 
-// Marshalls: [WRT_DATA]. (Note: Buffer is NOT automatically unpacked).
+// Marshalls: [WRT_DATA]. (Note: Byte field is NOT unpacked).
 static void marshall_payload_data (int dir, dsm_msg *mp, unsigned char *b) {
 	const char *pack_fmt = "lqqb", *unpack_fmt = "lqq";
+
 	if (dir == 0) {
 		pack(b, pack_fmt, mp->type, mp->data.offset, mp->data.size, 
 			mp->data.bytes);
@@ -406,6 +407,15 @@ void dsm_unpack_msg (dsm_msg *mp, unsigned char *b) {
 	f(1, mp, b);
 }
 
+// Returns the packed size of a message.
+size_t dsm_msg_size (dsm_msg_t type) {
+	if (type == DSM_MSG_WRT_DATA) {
+		return DSM_DATA_MSG_SIZE;
+	}
+
+	return DSM_MSG_SIZE;
+}
+
 // [DEBUG] Prints message.
 void dsm_show_msg (dsm_msg *mp) {
 	printf("=============== MSG ===============\n");
@@ -469,8 +479,8 @@ void dsm_show_msg (dsm_msg *mp) {
 			break;
 		case DSM_MSG_WRT_DATA:
 			printf("Type: DSM_MSG_WRT_DATA\n");
-			printf("offset = %" PRId32 "\n", mp->data.offset);
-			printf("size = %" PRId32 "\n", mp->data.size);
+			printf("offset = %" PRId64 "\n", mp->data.offset);
+			printf("size = %" PRId64 "\n", mp->data.size);
 			break;
 		case DSM_MSG_WRT_END:
 			printf("Type: DSM_MSG_WRT_END\n");

@@ -12,8 +12,14 @@
 // Size of (packed) control messages.
 #define DSM_MSG_SIZE                 64
 
+// Size of (packed) data message.
+#define DSM_DATA_MSG_SIZE            1044
+
 // Size of data payloads.
 #define DSM_MSG_DATA_SIZE            1024
+
+// The offset of the data payload.
+#define DSM_MSG_DATA_OFF             20
 
 // Fixed size for strings in messages.
 #define DSM_MSG_STR_SIZE             32
@@ -94,7 +100,7 @@ typedef struct dsm_payload_sem {
 typedef struct dsm_payload_data {
 	int64_t offset;
 	int64_t size;
-	unsigned char *bytes; // Note: Field is NOT automatically unpacked and set.
+	unsigned char *bytes; // Note: Field is NOT automatically unpacked.
 } dsm_payload_data;    // PACKED SIZE = 1040B, 
 
 
@@ -136,11 +142,20 @@ typedef void (*dsm_msg_func) (int, dsm_msg *);
 */
 
 
+/*
+ * Note: Messages of type DSM_MSG_WRT_DATA do NOT automaticlly unpack their
+ * bytes field in the data payload. This must be manually re-assigned.
+*/
+
+
 // Marshalls message to buffer. Buffer size must be at least DSM_MSG_SIZE.
 void dsm_pack_msg (dsm_msg *mp, unsigned char *b);
 
 // Unmarshalls message from buffer. Buffer size must be at least DSM_MSG_SIZE.
 void dsm_unpack_msg (dsm_msg *mp, unsigned char *b);
+
+// Returns the packed size of a message.
+size_t dsm_msg_size (dsm_msg_t type);
 
 // [DEBUG] Prints message.
 void dsm_show_msg (dsm_msg *mp);

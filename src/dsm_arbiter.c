@@ -82,25 +82,25 @@ dsm_cfg g_cfg;
 
 // Sends a message to target file-descriptor. Performs packing task.
 static void send_msg (int fd, dsm_msg *mp) {
-    unsigned char buf[DSM_MSG_SIZE];
+    unsigned char buf[DSM_DATA_MSG_SIZE];
 
     // Pack message.
     dsm_pack_msg(mp, buf);
 
     // Send message.
-    dsm_sendall(fd, buf, DSM_MSG_SIZE);
+    dsm_sendall(fd, buf, dsm_msg_size(mp->type));
 }
 
 // Sends a message to all file-descriptors. Performs packing task.
 static void send_all_msg (dsm_msg *mp) {
-    unsigned char buf[DSM_MSG_SIZE];
+    unsigned char buf[DSM_DATA_MSG_SIZE];
 
     // Pack message.
     dsm_pack_msg(mp, buf);
 
     // Send to all. Skip listner socket at zero + server socket at one.
     for (unsigned int i = 2; i < g_pollSet->fp; i++) {
-        dsm_sendall(g_pollSet->fds[i].fd, buf, DSM_MSG_SIZE);
+        dsm_sendall(g_pollSet->fds[i].fd, buf, dsm_msg_size(mp->type));
     }
 }
 
@@ -117,9 +117,9 @@ static void send_task_msg (int fd, dsm_msg_t type) {
     send_msg(fd, &msg);
 } 
 
-// Receives a message from target file-descriptor. Performs unpacking task.
+// [NON-REENTRANT] Receives message from given file-descriptor. Unpacks to mp.
 static void recv_msg (int fd, dsm_msg *mp) {
-	unsigned char buf[DSM_MSG_SIZE];
+	static unsigned char buf[DSM_DATA_MSG_SIZE];
 
 	// Receive data.
 	if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
@@ -127,11 +127,28 @@ static void recv_msg (int fd, dsm_msg *mp) {
 			__LINE__, fd);
 	}
 
-    // Increase global message count.
-    g_msg_count++;
-
 	// Unpack data.
 	dsm_unpack_msg(mp, buf);
+
+	// If message is not of type DSM_MSG_WRT_DATA: Return early.
+	if (mp->type != DSM_MSG_WRT_DATA) {
+		goto done;
+	}
+
+	// Otherwise read in the remaining data.
+	if (dsm_recvall(fd, buf + DSM_MSG_SIZE, DSM_MSG_DATA_SIZE - DSM_MSG_SIZE)
+		!= 0) {
+		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
+			__LINE__, fd);
+	}
+
+	// Set the buffer pointer. Valid until next function call.
+	mp->data.bytes = buf + DSM_MSG_DATA_OFF;
+
+	done:
+	
+	// Increase global message count.
+    g_msg_count++;
 }
 
 

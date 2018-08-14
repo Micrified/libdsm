@@ -68,26 +68,42 @@ int g_sock_io = -1;
 
 // Sends a message to target file-descriptor. Performs packing task.
 static void send_msg (int fd, dsm_msg *mp) {
-    unsigned char buf[DSM_MSG_SIZE];
+    unsigned char buf[DSM_DATA_MSG_SIZE];
 
     // Pack message.
     dsm_pack_msg(mp, buf);
 
     // Send message.
-    dsm_sendall(fd, buf, DSM_MSG_SIZE);
+    dsm_sendall(fd, buf, dsm_msg_size(mp->type));
 }
 
-// Receives a message and configures the target message pointer.
+// [NON-REENTRANT] Receives message from given file-descriptor. Unpacks to mp.
 static void recv_msg (int fd, dsm_msg *mp) {
-    unsigned char buf[DSM_MSG_SIZE];
+	static unsigned char buf[DSM_DATA_MSG_SIZE];
 
-    // Receive message.
-    if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
-        dsm_cpanic("recv_msg", "Lost connection to host!");
-    }
+	// Receive data.
+	if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
+		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
+			__LINE__, fd);
+	}
 
-    // Unpack message.
-    dsm_unpack_msg(mp, buf);
+	// Unpack data.
+	dsm_unpack_msg(mp, buf);
+
+	// If message is not of type DSM_MSG_WRT_DATA: Return early.
+	if (mp->type != DSM_MSG_WRT_DATA) {
+		return;
+	}
+
+	// Otherwise read in the remaining data.
+	if (dsm_recvall(fd, buf + DSM_MSG_SIZE, DSM_MSG_DATA_SIZE - DSM_MSG_SIZE)
+		!= 0) {
+		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
+			__LINE__, fd);
+	}
+
+	// Set the buffer pointer. Valid until next function call.
+	mp->data.bytes = buf + DSM_MSG_DATA_OFF;
 }
 
 

@@ -146,7 +146,7 @@ static void rem_fd_sid (int fd) {
 // Sends a message to target fd for SID payload. Performs packing task.
 static void send_sid_msg (int fd, dsm_msg_t type, char *sid_name, int port) {
 	dsm_msg msg;
-    unsigned char buf[DSM_MSG_SIZE];
+    unsigned char buf[DSM_DATA_MSG_SIZE];
 
 	// Create message.
 	msg.type = type;
@@ -157,8 +157,38 @@ static void send_sid_msg (int fd, dsm_msg_t type, char *sid_name, int port) {
     dsm_pack_msg(&msg, buf);
 
     // Send message.
-    dsm_sendall(fd, buf, DSM_MSG_SIZE);
+    dsm_sendall(fd, buf, dsm_msg_size(type));
 }
+
+// [NON-REENTRANT] Receives message from given file-descriptor. Unpacks to mp.
+static void recv_msg (int fd, dsm_msg *mp) {
+	static unsigned char buf[DSM_DATA_MSG_SIZE];
+
+	// Receive data.
+	if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
+		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
+			__LINE__, fd);
+	}
+
+	// Unpack data.
+	dsm_unpack_msg(mp, buf);
+
+	// If message is not of type DSM_MSG_WRT_DATA: Return early.
+	if (mp->type != DSM_MSG_WRT_DATA) {
+		return;
+	}
+
+	// Otherwise read in the remaining data.
+	if (dsm_recvall(fd, buf + DSM_MSG_SIZE, DSM_MSG_DATA_SIZE - DSM_MSG_SIZE)
+		!= 0) {
+		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
+			__LINE__, fd);
+	}
+
+	// Set the buffer pointer. Valid until next function call.
+	mp->data.bytes = buf + DSM_MSG_DATA_OFF;
+}
+
 
 
 /*
@@ -308,17 +338,11 @@ static void handle_new_connection (int fd) {
 
 // Handles a message from a pollable socket.
 static void handle_new_message (int fd) {
-    unsigned char buf[DSM_MSG_SIZE];
     dsm_msg msg = {0};
     void (*handler)(int, dsm_msg *);
 
-    // Read in data. Abort if sender disconnected (recvall returns nonzero).
-    if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
-        dsm_cpanic("handle_new_msg", 
-			"Participant lost connection. Unsafe state!");
-    } else {
-        dsm_unpack_msg(&msg, buf);
-    }
+	// Receive and unpack message.
+	recv_msg(fd, &msg);
 
     // Get handler. Abort if none set.
     if ((handler = dsm_getMsgFunc(msg.type, g_fmap)) == NULL) {

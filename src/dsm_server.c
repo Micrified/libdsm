@@ -84,18 +84,18 @@ int g_sock_listen = -1;
 
 // Sends a message to target file-descriptor. Performs packing task.
 static void send_msg (int fd, dsm_msg *mp) {
-    unsigned char buf[DSM_MSG_SIZE];
+    unsigned char buf[DSM_DATA_MSG_SIZE];
 
     // Pack message.
     dsm_pack_msg(mp, buf);
 
     // Send message.
-    dsm_sendall(fd, buf, DSM_MSG_SIZE);
+    dsm_sendall(fd, buf, dsm_msg_size(mp->type));
 }
 
 // Sends a message to all file-descriptors but except. Performs packing task.
 static void send_all_msg (dsm_msg *mp, int except) {
-    unsigned char buf[DSM_MSG_SIZE];
+    unsigned char buf[DSM_DATA_MSG_SIZE];
 
     // Pack message.
     dsm_pack_msg(mp, buf);
@@ -106,7 +106,7 @@ static void send_all_msg (dsm_msg *mp, int except) {
         if (g_pollSet->fds[i].fd == except) {
             continue;
         }
-        dsm_sendall(g_pollSet->fds[i].fd, buf, DSM_MSG_SIZE);
+        dsm_sendall(g_pollSet->fds[i].fd, buf, dsm_msg_size(mp->type));
     }
 }
 
@@ -140,6 +140,35 @@ static void send_queue_wrt_now_msg (void) {
 
     // Dispatch message.
     send_msg(fd, &msg);
+}
+
+// [NON-REENTRANT] Receives message from given file-descriptor. Unpacks to mp.
+static void recv_msg (int fd, dsm_msg *mp) {
+	static unsigned char buf[DSM_DATA_MSG_SIZE];
+
+	// Receive data.
+	if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
+		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
+			__LINE__, fd);
+	}
+
+	// Unpack data.
+	dsm_unpack_msg(mp, buf);
+
+	// If message is not of type DSM_MSG_WRT_DATA: Return early.
+	if (mp->type != DSM_MSG_WRT_DATA) {
+		return;
+	}
+
+	// Otherwise read in the remaining data.
+	if (dsm_recvall(fd, buf + DSM_MSG_SIZE, DSM_MSG_DATA_SIZE - DSM_MSG_SIZE)
+		!= 0) {
+		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
+			__LINE__, fd);
+	}
+
+	// Set the buffer pointer. Valid until next function call.
+	mp->data.bytes = buf + DSM_MSG_DATA_OFF;
 }
 
 
@@ -408,26 +437,20 @@ static void handle_new_connection (int fd) {
 
 // Handles a message from a pollable socket.
 static void handle_new_message (int fd) {
-    unsigned char buf[DSM_MSG_SIZE];
-    dsm_msg msg = {0};
-    void (*handler)(int, dsm_msg *);
+	dsm_msg msg = {0};
+	void (*handler)(int, dsm_msg *);
 
-    // Read in data. Abort if sender disconnected (recvall returns nonzero).
-    if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
-        dsm_cpanic("handle_new_msg", 
-			"Participant lost connection. Unsafe state!");
-    } else {
-        dsm_unpack_msg(&msg, buf);
-    }
+	// Receive and unpack message.
+	recv_msg(fd, &msg);
 
-    // Get handler. Abort if none set.
-    if ((handler = dsm_getMsgFunc(msg.type, g_fmap)) == NULL) {
-        dsm_warning("Unknown message received!");
-        dsm_removePollable(fd, g_pollSet);
-        close(fd);
-    } else {
-        handler(fd, &msg);
-    }
+	// Get handler.
+	if ((handler = dsm_getMsgFunc(msg.type, g_fmap)) == NULL) {
+		dsm_warning("Unknown message received!");
+		dsm_removePollable(fd, g_pollSet);
+		close(fd);
+	} else {
+		handler(fd, &msg);
+	}
 }
 
 
