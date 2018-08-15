@@ -123,8 +123,7 @@ static int64_t unpack_i64 (unsigned char *b, int64_t *ip) {
  * Supported tokens are:
  * Long (int32_t):  	 	"l"
  * Quad (int64_t):  	 	"q"
- * String (char):   	 	"s" (fixed size).
- * Bytes (unsigned char):	"b" (fixed to DSM_MSG_DATA_SIZE bytes).
+ * String (char):   	 	"s" (fixed to DSM_MSG_STR_SIZE bytes).
  * Returns total number of bytes written. Truncates strings if too long.
 */
 static size_t pack (unsigned char *b, const char *fmt, ...) {
@@ -132,7 +131,6 @@ static size_t pack (unsigned char *b, const char *fmt, ...) {
 	size_t size = 0, written = 0;
 
 	char *s;			// String.
-	unsigned char *y;	// Byte buffer.
 	uint32_t l;			// 32-bit signed integer.
 	uint64_t q;			// 64-bit signed integer.
 
@@ -160,12 +158,6 @@ static size_t pack (unsigned char *b, const char *fmt, ...) {
 				written = DSM_MSG_STR_SIZE;
 				break;
 
-			case 'b':
-				y = va_arg(ap, unsigned char *);
-				memcpy(b, y, DSM_MSG_DATA_SIZE);
-				written = DSM_MSG_DATA_SIZE;
-				break;
-
             default:
                 fprintf(stderr, "Error: Unknown token: %c!\n", *fmt);
                 exit(EXIT_FAILURE);
@@ -189,8 +181,7 @@ static size_t pack (unsigned char *b, const char *fmt, ...) {
  * Supported tokens are:
  * Long (int32_t):  	 	"l"
  * Quad (int64_t):  	 	"q"
- * String (char):   	 	"s" (fixed size).
- * Bytes (unsigned char):	"b" (fixed to DSM_MSG_DATA_SIZE bytes).
+ * String (char):   	 	"s" (fixed to DSM_MSG_STR_SIZE bytes).
  * Returns total number of bytes written. Truncates strings if too long.
 */
 static size_t unpack (unsigned char *b, const char *fmt, ...) {
@@ -198,7 +189,6 @@ static size_t unpack (unsigned char *b, const char *fmt, ...) {
 	size_t size = 0, read = 0;
 
 	char *s;			// String.
-	unsigned char *y;	// Byte buffer.
 	int32_t *l;			// 32-bit signed integer.
 	int64_t *q;			// 64-bit signed integer.
 
@@ -223,12 +213,6 @@ static size_t unpack (unsigned char *b, const char *fmt, ...) {
 				s = va_arg(ap, char *);
 				memcpy(s, b, DSM_MSG_STR_SIZE);
 				read = DSM_MSG_STR_SIZE;
-				break;
-
-			case 'b':
-				y = va_arg(ap, unsigned char *);
-				memcpy(y, b, DSM_MSG_DATA_SIZE);
-				read = DSM_MSG_DATA_SIZE;
 				break;
 
             default:
@@ -297,16 +281,13 @@ static void marshall_payload_task (int dir, dsm_msg *mp, unsigned char *b) {
 	}
 }
 
-// Marshalls: [WRT_DATA]. (Note: Byte field is NOT unpacked).
+// Marshalls: [WRT_DATA]. (the buf field is NOT packed).
 static void marshall_payload_data (int dir, dsm_msg *mp, unsigned char *b) {
-	const char *pack_fmt = "lqqb", *unpack_fmt = "lqq";
-
+	const char *fmt = "lqq";
 	if (dir == 0) {
-		pack(b, pack_fmt, mp->type, mp->data.offset, mp->data.size, 
-			mp->data.bytes);
+		pack(b, fmt, mp->type, mp->data.offset, mp->data.size);
 	} else {
-		unpack(b, unpack_fmt, &(mp->type), &(mp->data.offset), 
-			&(mp->data.size));
+		unpack(b, fmt, &(mp->type), &(mp->data.offset), &(mp->data.size));
 	}
 }
 
@@ -407,14 +388,6 @@ void dsm_unpack_msg (dsm_msg *mp, unsigned char *b) {
 	f(1, mp, b);
 }
 
-// Returns the packed size of a message.
-size_t dsm_msg_size (dsm_msg_t type) {
-	if (type == DSM_MSG_WRT_DATA) {
-		return DSM_DATA_MSG_SIZE;
-	}
-
-	return DSM_MSG_SIZE;
-}
 
 // [DEBUG] Prints message.
 void dsm_show_msg (dsm_msg *mp) {
@@ -481,6 +454,9 @@ void dsm_show_msg (dsm_msg *mp) {
 			printf("Type: DSM_MSG_WRT_DATA\n");
 			printf("offset = %" PRId64 "\n", mp->data.offset);
 			printf("size = %" PRId64 "\n", mp->data.size);
+			for (int i = 0; i < MIN(8, mp->data.size); ++i) {
+				printf("0x%02x ", mp->data.buf[i]);
+			}
 			break;
 		case DSM_MSG_WRT_END:
 			printf("Type: DSM_MSG_WRT_END\n");

@@ -18,6 +18,7 @@
 #include "dsm_stab.h"
 #include "dsm_sem_htab.h"
 #include "dsm_daemon.h"
+#include "dsm_msg_io.h"
 
 
 /*
@@ -82,23 +83,8 @@ int g_sock_listen = -1;
 */
 
 
-// Sends a message to target file-descriptor. Performs packing task.
-static void send_msg (int fd, dsm_msg *mp) {
-    unsigned char buf[DSM_DATA_MSG_SIZE];
-
-    // Pack message.
-    dsm_pack_msg(mp, buf);
-
-    // Send message.
-    dsm_sendall(fd, buf, dsm_msg_size(mp->type));
-}
-
 // Sends a message to all file-descriptors but except. Performs packing task.
 static void send_all_msg (dsm_msg *mp, int except) {
-    unsigned char buf[DSM_DATA_MSG_SIZE];
-
-    // Pack message.
-    dsm_pack_msg(mp, buf);
 
     // Send to all. Skip listener socket at index zero.
     for (int i = 1; i < (int)g_pollSet->fp; i++) {
@@ -106,7 +92,8 @@ static void send_all_msg (dsm_msg *mp, int except) {
         if (g_pollSet->fds[i].fd == except) {
             continue;
         }
-        dsm_sendall(g_pollSet->fds[i].fd, buf, dsm_msg_size(mp->type));
+
+		dsm_send_msg(g_pollSet->fds[i].fd, mp);
     }
 }
 
@@ -116,7 +103,7 @@ static void send_easy_msg (int fd, dsm_msg_t type) {
 
     // If fd >= 0: Send to fd.
     if (fd >= 0) {
-        send_msg(fd, &msg);
+        dsm_send_msg(fd, &msg);
         return;
     }
 
@@ -139,36 +126,7 @@ static void send_queue_wrt_now_msg (void) {
     msg.proc.pid = pid;
 
     // Dispatch message.
-    send_msg(fd, &msg);
-}
-
-// [NON-REENTRANT] Receives message from given file-descriptor. Unpacks to mp.
-static void recv_msg (int fd, dsm_msg *mp) {
-	static unsigned char buf[DSM_DATA_MSG_SIZE];
-
-	// Receive data.
-	if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
-		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
-			__LINE__, fd);
-	}
-
-	// Unpack data.
-	dsm_unpack_msg(mp, buf);
-
-	// If message is not of type DSM_MSG_WRT_DATA: Return early.
-	if (mp->type != DSM_MSG_WRT_DATA) {
-		return;
-	}
-
-	// Otherwise read in the remaining data.
-	if (dsm_recvall(fd, buf + DSM_MSG_SIZE, 
-		DSM_MSG_DATA_SIZE - DSM_MSG_SIZE - DSM_MSG_DATA_OFF) != 0) {
-		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
-			__LINE__, fd);
-	}
-
-	// Set the buffer pointer. Valid until next function call.
-	mp->data.bytes = buf + DSM_MSG_DATA_OFF;
+    dsm_send_msg(fd, &msg);
 }
 
 
@@ -222,7 +180,7 @@ static void handler_add_pid (int fd, dsm_msg *mp) {
     // Send response with process global identifier.
     mp->type = DSM_MSG_SET_GID;
     mp->proc.gid = proc_p->gid;
-    send_msg(fd, mp);
+    dsm_send_msg(fd, mp);
 
     // If all processes ready. Start session.
     if ((g_proc_tab->nready += 1) >= g_nproc) {
@@ -332,7 +290,7 @@ static void handler_post_sem (int fd, dsm_msg *mp) {
     } else {
         proc->sem_id = -1;
         mp->sem.pid = proc->pid;
-        send_msg(pfd, mp);
+        dsm_send_msg(pfd, mp);
     }
 }
 
@@ -359,7 +317,7 @@ static void handler_wait_sem (int fd, dsm_msg *mp) {
     // If sem value > 0 : Send unblock and decrement. Else log sem under pid.
     if (sem->value > 0) {
         mp->type = DSM_MSG_POST_SEM; // Arbiter watches for POST_SEM only.
-        send_msg(fd, mp);
+        dsm_send_msg(fd, mp);
         sem->value--;
     } else {
         proc_p->sem_id = sem->sem_id;
@@ -412,7 +370,7 @@ static void send_sid_msg (dsm_msg_t type, const char *sid) {
 	msg.sid.port = port;
 
 	// Dispatch message.
-	send_msg(s, &msg);
+	dsm_send_msg(s, &msg);
 
 	// Close socket.
 	close(s);
@@ -441,7 +399,7 @@ static void handle_new_message (int fd) {
 	void (*handler)(int, dsm_msg *);
 
 	// Receive and unpack message.
-	recv_msg(fd, &msg);
+	dsm_recv_msg(fd, &msg);
 
 	// Get handler.
 	if ((handler = dsm_getMsgFunc(msg.type, g_fmap)) == NULL) {

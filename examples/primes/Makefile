@@ -18,3 +18,4 @@ seq_primes: seq_primes.c
 
 clean:
 	rm dsm_primes
+	rm seq_primes

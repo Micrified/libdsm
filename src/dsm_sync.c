@@ -12,7 +12,7 @@
 #include "dsm_util.h"
 #include "dsm_inet.h"
 #include "dsm_signal.h"
-
+#include "dsm_msg_io.h"
 
 /*
  *******************************************************************************
@@ -56,54 +56,6 @@ unsigned int g_skip_sync;
 
 /*
  *******************************************************************************
- *                          Message Wrapper Functions                          *
- *******************************************************************************
-*/
-
-
-// Sends a message to target file-descriptor. Performs packing task.
-static void send_msg (int fd, dsm_msg *mp) {
-    unsigned char buf[DSM_DATA_MSG_SIZE];
-
-    // Pack message.
-    dsm_pack_msg(mp, buf);
-
-    // Send message.
-    dsm_sendall(fd, buf, dsm_msg_size(mp->type));
-}
-
-// [NON-REENTRANT] Receives message from given file-descriptor. Unpacks to mp.
-static void recv_msg (int fd, dsm_msg *mp) {
-	static unsigned char buf[DSM_DATA_MSG_SIZE];
-
-	// Receive data.
-	if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
-		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
-			__LINE__, fd);
-	}
-
-	// Unpack data.
-	dsm_unpack_msg(mp, buf);
-
-	// If message is not of type DSM_MSG_WRT_DATA: Return early.
-	if (mp->type != DSM_MSG_WRT_DATA) {
-		return;
-	}
-
-	// Otherwise read in the remaining data.
-	if (dsm_recvall(fd, buf + DSM_MSG_SIZE, 
-		DSM_MSG_DATA_SIZE - DSM_MSG_SIZE - DSM_MSG_DATA_OFF) != 0) {
-		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
-			__LINE__, fd);
-	}
-
-	// Set the buffer pointer. Valid until next function call.
-	mp->data.bytes = buf + DSM_MSG_DATA_OFF;
-}
-
-
-/*
- *******************************************************************************
  *                        Private Function Definitions                         *
  *******************************************************************************
 */
@@ -138,10 +90,10 @@ static void takeAccess (void) {
 	msg.proc.pid = getpid();
 
 	// Send message to arbiter.
-	send_msg(g_sock_io, &msg);
+	dsm_send_msg(g_sock_io, &msg);
 
 	// Wait for response from arbiter.
-	recv_msg(g_sock_io, &msg);
+	dsm_recv_msg(g_sock_io, &msg);;
 
 	// Verify message.
 	ASSERT_COND(msg.type == DSM_MSG_WRT_NOW && msg.proc.pid == getpid());
@@ -154,14 +106,17 @@ static void dropAccess (size_t modified_size) {
 	// Reset default behavior for SIGTSTP.
 	dsm_sigdefault(SIGTSTP);
 
-	// Configure message: Size assumed to be 64 bits.
-	msg.data.offset = (uintptr_t)g_fault_addr - (uintptr_t)g_shared_map;
-	msg.data.size = modified_size;
-	memcpy(msg.data.bytes, g_fault_addr, msg.data.size);
+	// Compute maximum allowed size (so not to go out of range).
+	size_t offset = (size_t)((uintptr_t)g_fault_addr - (uintptr_t)g_shared_map);
+	size_t size = MIN(modified_size, ((size_t)g_map_size - offset));
+
+	// Configure message.
+	msg.data.offset = offset;
+	msg.data.size = size;
+	msg.data.buf = g_fault_addr;
 
 	// Send mesage.
-	send_msg(g_sock_io, &msg);
-	
+	dsm_send_msg(g_sock_io, &msg);
 }
 
 

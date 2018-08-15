@@ -8,13 +8,13 @@ BIN=./bin/
 
 # FILE LISTS
 
-DAEMON_FILES=${SDIR}dsm_daemon.c ${SDIR}dsm_msg.c ${SDIR}dsm_htab.c ${SDIR}dsm_inet.c ${SDIR}dsm_poll.c ${SDIR}dsm_ptab.c ${SDIR}dsm_sid_htab.c ${SDIR}dsm_stab.c ${SDIR}dsm_util.c
+DAEMON_FILES=${SDIR}dsm_daemon.c ${SDIR}dsm_msg.c ${SDIR}dsm_htab.c ${SDIR}dsm_inet.c ${SDIR}dsm_poll.c ${SDIR}dsm_ptab.c ${SDIR}dsm_sid_htab.c ${SDIR}dsm_stab.c ${SDIR}dsm_util.c ${SDIR}dsm_msg_io.c
 
-SERVER_FILES=${SDIR}dsm_server.c ${SDIR}dsm_msg.c ${SDIR}dsm_htab.c ${SDIR}dsm_inet.c ${SDIR}dsm_poll.c ${SDIR}dsm_ptab.c ${SDIR}dsm_sem_htab.c ${SDIR}dsm_stab.c ${SDIR}dsm_util.c ${SDIR}dsm_opqueue.c
+SERVER_FILES=${SDIR}dsm_server.c ${SDIR}dsm_msg.c ${SDIR}dsm_htab.c ${SDIR}dsm_inet.c ${SDIR}dsm_poll.c ${SDIR}dsm_ptab.c ${SDIR}dsm_sem_htab.c ${SDIR}dsm_stab.c ${SDIR}dsm_util.c ${SDIR}dsm_opqueue.c ${SDIR}dsm_msg_io.c
 
-ARBITER_FILES=${SDIR}dsm_arbiter.c ${SDIR}dsm_msg.c ${SDIR}dsm_inet.c ${SDIR}dsm_poll.c ${SDIR}dsm_ptab.c ${SDIR}dsm_util.c
+ARBITER_FILES=${SDIR}dsm_arbiter.c ${SDIR}dsm_msg.c ${SDIR}dsm_inet.c ${SDIR}dsm_poll.c ${SDIR}dsm_ptab.c ${SDIR}dsm_util.c ${SDIR}dsm_msg_io.c 
 
-DSM_FILES=${SDIR}dsm.c ${SDIR}dsm_sync.c ${SDIR}dsm_signal.c ${SDIR}dsm_msg.c ${SDIR}dsm_inet.c ${SDIR}dsm_util.c ${SDIR}dsm_holes.c
+DSM_FILES=${SDIR}dsm.c ${SDIR}dsm_sync.c ${SDIR}dsm_signal.c ${SDIR}dsm_msg.c ${SDIR}dsm_inet.c ${SDIR}dsm_util.c ${SDIR}dsm_holes.c ${SDIR}dsm_msg_io.c
 
 
 # BUILD RULES

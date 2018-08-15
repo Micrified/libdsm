@@ -14,7 +14,7 @@
 #include "dsm_signal.h"
 #include "dsm_sync.h"
 #include "dsm_holes.h"
-
+#include "dsm_msg_io.h"
 
 /*
  *******************************************************************************
@@ -61,54 +61,6 @@ int g_sock_io = -1;
 
 /*
  *******************************************************************************
- *                          Message Wrapper Functions                          *
- *******************************************************************************
-*/
-
-
-// Sends a message to target file-descriptor. Performs packing task.
-static void send_msg (int fd, dsm_msg *mp) {
-    unsigned char buf[DSM_DATA_MSG_SIZE];
-
-    // Pack message.
-    dsm_pack_msg(mp, buf);
-
-    // Send message.
-    dsm_sendall(fd, buf, dsm_msg_size(mp->type));
-}
-
-// [NON-REENTRANT] Receives message from given file-descriptor. Unpacks to mp.
-static void recv_msg (int fd, dsm_msg *mp) {
-	static unsigned char buf[DSM_DATA_MSG_SIZE];
-
-	// Receive data.
-	if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
-		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
-			__LINE__, fd);
-	}
-
-	// Unpack data.
-	dsm_unpack_msg(mp, buf);
-
-	// If message is not of type DSM_MSG_WRT_DATA: Return early.
-	if (mp->type != DSM_MSG_WRT_DATA) {
-		return;
-	}
-
-	// Otherwise read in the remaining data.
-	if (dsm_recvall(fd, buf + DSM_MSG_SIZE, 
-		DSM_MSG_DATA_SIZE - DSM_MSG_SIZE - DSM_MSG_DATA_OFF) != 0) {
-		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
-			__LINE__, fd);
-	}
-
-	// Set the buffer pointer. Valid until next function call.
-	mp->data.bytes = buf + DSM_MSG_DATA_OFF;
-}
-
-
-/*
- *******************************************************************************
  *                              Message Functions                              *
  *******************************************************************************
 */
@@ -118,14 +70,14 @@ static void recv_msg (int fd, dsm_msg *mp) {
 static void send_add_pid (void) {
     dsm_msg msg = {.type = DSM_MSG_ADD_PID};
     msg.proc.pid = getpid();
-    send_msg(g_sock_io, &msg);
+	dsm_send_msg(g_sock_io, &msg);
 }
 
 // Sends DSM_MSG_HIT_BAR to the arbiter.
 static void send_hit_bar (void) {
     dsm_msg msg = {.type = DSM_MSG_HIT_BAR};
     msg.proc.pid = getpid();
-    send_msg(g_sock_io, &msg);
+    dsm_send_msg(g_sock_io, &msg);
 }
 
 // Sends payload for DSM_MSG_POST_SEM and DSM_MSG_WAIT_SEM to arbiter.
@@ -136,13 +88,13 @@ static void send_sem_msg (dsm_msg_t type, const char *sem_name) {
     // Semaphore name is truncated if too long.
     snprintf(msg.sem.sem_name, DSM_MSG_STR_SIZE, "%s", sem_name);
 
-    send_msg(g_sock_io, &msg);
+    dsm_send_msg(g_sock_io, &msg);
 }
 
 // Sends exit message to arbiter.
 static void send_exit (void) {
     dsm_msg msg = {.type = DSM_MSG_EXIT};
-    send_msg(g_sock_io, &msg);
+    dsm_send_msg(g_sock_io, &msg);
 }
 
 // Receives DSM_POST_SEM from arbiter.
@@ -151,7 +103,7 @@ static void recv_post_sem (const char *sem_name) {
     UNUSED(sem_name);
 
     // Receive message.
-    recv_msg(g_sock_io, &msg);
+    dsm_recv_msg(g_sock_io, &msg);
 
     // Verify.
     ASSERT_COND(msg.type == DSM_MSG_POST_SEM && msg.sem.pid == getpid());
@@ -162,7 +114,7 @@ static int recv_set_gid (void) {
     dsm_msg msg;
 
     // Receive message.
-    recv_msg(g_sock_io, &msg);
+    dsm_recv_msg(g_sock_io, &msg);
 
     // Verify.
     ASSERT_COND(msg.type == DSM_MSG_SET_GID && msg.proc.pid == getpid());

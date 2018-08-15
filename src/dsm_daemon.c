@@ -17,7 +17,7 @@
 #include "dsm_ptab.h"
 #include "dsm_stab.h"
 #include "dsm_sid_htab.h"
-
+#include "dsm_msg_io.h"
 
 /*
  *******************************************************************************
@@ -146,49 +146,15 @@ static void rem_fd_sid (int fd) {
 // Sends a message to target fd for SID payload. Performs packing task.
 static void send_sid_msg (int fd, dsm_msg_t type, char *sid_name, int port) {
 	dsm_msg msg;
-    unsigned char buf[DSM_DATA_MSG_SIZE];
 
 	// Create message.
 	msg.type = type;
 	msg.sid.port = port;
 	snprintf(msg.sid.sid_name, DSM_MSG_STR_SIZE, "%s", sid_name);
-	
-    // Pack message.
-    dsm_pack_msg(&msg, buf);
 
-    // Send message.
-    dsm_sendall(fd, buf, dsm_msg_size(type));
+	// Send message.
+	dsm_send_msg(fd, &msg);
 }
-
-// [NON-REENTRANT] Receives message from given file-descriptor. Unpacks to mp.
-static void recv_msg (int fd, dsm_msg *mp) {
-	static unsigned char buf[DSM_DATA_MSG_SIZE];
-
-	// Receive data.
-	if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
-		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
-			__LINE__, fd);
-	}
-
-	// Unpack data.
-	dsm_unpack_msg(mp, buf);
-
-	// If message is not of type DSM_MSG_WRT_DATA: Return early.
-	if (mp->type != DSM_MSG_WRT_DATA) {
-		return;
-	}
-
-	// Otherwise read in the remaining data.
-	if (dsm_recvall(fd, buf + DSM_MSG_SIZE, 
-		DSM_MSG_DATA_SIZE - DSM_MSG_SIZE - DSM_MSG_DATA_OFF) != 0) {
-		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
-			__LINE__, fd);
-	}
-
-	// Set the buffer pointer. Valid until next function call.
-	mp->data.bytes = buf + DSM_MSG_DATA_OFF;
-}
-
 
 
 /*
@@ -342,7 +308,7 @@ static void handle_new_message (int fd) {
     void (*handler)(int, dsm_msg *);
 
 	// Receive and unpack message.
-	recv_msg(fd, &msg);
+	dsm_recv_msg(fd, &msg);
 
     // Get handler. Abort if none set.
     if ((handler = dsm_getMsgFunc(msg.type, g_fmap)) == NULL) {

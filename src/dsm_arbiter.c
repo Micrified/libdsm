@@ -13,6 +13,7 @@
 #include "dsm_poll.h"
 #include "dsm_inet.h"
 #include "dsm_ptab.h"
+#include "dsm_msg_io.h"
 
 
 /*
@@ -80,77 +81,18 @@ dsm_cfg g_cfg;
 */
 
 
-// Sends a message to target file-descriptor. Performs packing task.
-static void send_msg (int fd, dsm_msg *mp) {
-    unsigned char buf[DSM_DATA_MSG_SIZE];
-
-    // Pack message.
-    dsm_pack_msg(mp, buf);
-
-    // Send message.
-    dsm_sendall(fd, buf, dsm_msg_size(mp->type));
-}
-
-// Sends a message to all file-descriptors. Performs packing task.
-static void send_all_msg (dsm_msg *mp) {
-    unsigned char buf[DSM_DATA_MSG_SIZE];
-
-    // Pack message.
-    dsm_pack_msg(mp, buf);
-
-    // Send to all. Skip listner socket at zero + server socket at one.
-    for (unsigned int i = 2; i < g_pollSet->fp; i++) {
-        dsm_sendall(g_pollSet->fds[i].fd, buf, dsm_msg_size(mp->type));
-    }
-}
-
 // Sends basic message without payload. 
 static void send_easy_msg (int fd, dsm_msg_t type) {
     dsm_msg msg = {.type = type};
-    send_msg(fd, &msg);
+    dsm_send_msg(fd, &msg);
 }
 
 // Sends message for payload: dsm_payload_task. Fills out number of processes.
 static void send_task_msg (int fd, dsm_msg_t type) {
     dsm_msg msg = {.type = type};
     msg.task.nproc = g_proc_tab->nproc;
-    send_msg(fd, &msg);
-} 
-
-// [NON-REENTRANT] Receives message from given file-descriptor. Unpacks to mp.
-static void recv_msg (int fd, dsm_msg *mp) {
-	static unsigned char buf[DSM_DATA_MSG_SIZE];
-
-	// Receive data.
-	if (dsm_recvall(fd, buf, DSM_MSG_SIZE) != 0) {
-		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
-			__LINE__, fd);
-	}
-
-	// Unpack data.
-	dsm_unpack_msg(mp, buf);
-
-	// If message is not of type DSM_MSG_WRT_DATA: Return early.
-	if (mp->type != DSM_MSG_WRT_DATA) {
-		goto done;
-	}
-
-	// Otherwise read in the remaining data.
-	if (dsm_recvall(fd, buf + DSM_MSG_SIZE, 
-		DSM_MSG_DATA_SIZE - DSM_MSG_SIZE - DSM_MSG_DATA_OFF) != 0) {
-		dsm_panicf("(%s:%d) Connection loss (socket = %d)!", __FILE__,
-			__LINE__, fd);
-	}
-
-	// Set the buffer pointer. Valid until next function call.
-	mp->data.bytes = buf + DSM_MSG_DATA_OFF;
-
-	done:
-	
-	// Increase global message count.
-    g_msg_count++;
+    dsm_send_msg(fd, &msg);
 }
-
 
 /*
  *******************************************************************************
@@ -171,7 +113,7 @@ static void map_gid_all (int fd, dsm_proc *proc_p) {
 
     msg.proc.pid = proc_p->pid;
     msg.proc.gid = proc_p->gid;
-    send_msg(fd, &msg);
+    dsm_send_msg(fd, &msg);
 }
 
 // Sets stopped bit on process. Signals if not blocked, stopped, or queued.
@@ -257,7 +199,7 @@ static void handler_wrt_now (int fd, dsm_msg *mp) {
     proc_p->flags.is_queued = 0;
 
     // Forward message to writer.
-    send_msg(proc_fd, mp);
+    dsm_send_msg(proc_fd, mp);
 }
 
 // DSM_MSG_SET_GID: Set a process global-identifier.
@@ -297,7 +239,7 @@ static void handler_add_pid (int fd, dsm_msg *mp) {
     proc_p->flags.is_stopped = 1;
 
     // Forward message to server.
-    send_msg(g_sock_server, mp);
+    dsm_send_msg(g_sock_server, mp);
 }
 
 // DSM_MSG_REQ_WRT: Process requesting to write.
@@ -316,7 +258,7 @@ static void handler_req_wrt (int fd, dsm_msg *mp) {
     proc_p->flags.is_queued = 1;
 
     // Forward request to server.
-    send_msg(g_sock_server, mp);
+    dsm_send_msg(g_sock_server, mp);
 }
 
 // DSM_MSG_HIT_BAR: Process is waiting on a barrier.
@@ -335,7 +277,7 @@ static void handler_hit_bar (int fd, dsm_msg *mp) {
     proc_p->flags.is_blocked = 1;
 
     // Forward message to server.
-    send_msg(g_sock_server, mp);
+    dsm_send_msg(g_sock_server, mp);
 }
 
 // DSM_MSG_WRT_DATA: Process data message.
@@ -346,7 +288,7 @@ static void handler_wrt_data (int fd, dsm_msg *mp) {
 
     // If it's coming from a local process, forward to server.
     if (fd != g_sock_server) {
-        send_msg(g_sock_server, mp);
+        dsm_send_msg(g_sock_server, mp);
 
     } else {
 		
@@ -356,7 +298,7 @@ static void handler_wrt_data (int fd, dsm_msg *mp) {
         // Otherwise synchronize the shared memory.
         dsm_mprotect(g_shared_map, g_map_size, PROT_WRITE);
         void *dest = (void *)((uintptr_t)g_shared_map + mp->data.offset);
-        void *src = (void *)mp->data.bytes;
+        void *src = (void *)mp->data.buf;
 		len = MIN(MAX(len, map_end - (size_t)dest), 8);
         memcpy(dest, src, len);
         dsm_mprotect(g_shared_map, g_map_size, PROT_READ);
@@ -386,7 +328,7 @@ static void handler_post_sem (int fd, dsm_msg *mp) {
         proc_p->flags.is_blocked = 0;
 
         // Forward message to process.
-        send_msg(proc_fd, mp);
+        dsm_send_msg(proc_fd, mp);
 
         return;
     }
@@ -396,7 +338,7 @@ static void handler_post_sem (int fd, dsm_msg *mp) {
         != NULL);
 
     // Foward POST to server.
-    send_msg(g_sock_server, mp);
+    dsm_send_msg(g_sock_server, mp);
 }
 
 // DSM_MSG_WAIT_SEM: Process waiting on a named semaphore.
@@ -415,7 +357,7 @@ static void handler_wait_sem (int fd, dsm_msg *mp) {
     proc_p->flags.is_blocked = 1;
 
     // Forward message to server.
-    send_msg(g_sock_server, mp);
+    dsm_send_msg(g_sock_server, mp);
 }
 
 // DSM_MSG_EXIT: Process exiting.
@@ -470,10 +412,10 @@ static int getServerSocket (dsm_cfg *cfg) {
 	msg.sid.nproc = cfg->tproc;
 	
 	// Dispatch session request.
-	send_msg(sock, &msg);
+	dsm_send_msg(sock, &msg);
 
 	// Read back response.
-	recv_msg(sock, &msg);
+	dsm_recv_msg(sock, &msg);
 
 	// Close connection.
 	close(sock);
@@ -516,8 +458,11 @@ static void handle_new_message (int fd) {
     dsm_msg msg = {0};
     void (*handler)(int, dsm_msg *);
 
-	// Read in data. Abort if sender disconnected (recvall returns nonzero).
-	recv_msg(fd, &msg);
+	// Read in data.
+	dsm_recv_msg(fd, &msg);
+
+	// Increment the message count.
+	g_msg_count++;
 
     // Get handler. Abort if none set.
     if ((handler = dsm_getMsgFunc(msg.type, g_fmap)) == NULL) {
