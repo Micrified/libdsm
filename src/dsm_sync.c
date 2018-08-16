@@ -14,6 +14,7 @@
 #include "dsm_signal.h"
 #include "dsm_msg_io.h"
 
+
 /*
  *******************************************************************************
  *                             Symbolic Constants                              *
@@ -25,7 +26,7 @@
 #define UD2_SIZE		2
 
 // Length of the largest addressable system type (64-bit).
-#define MAX_TYPE_SIZE	64
+#define MAX_TYPE_SIZE	8
 
 
 /*
@@ -107,7 +108,7 @@ static void dropAccess (size_t modified_size) {
 	dsm_sigdefault(SIGTSTP);
 
 	// Compute maximum allowed size (so not to go out of range).
-	size_t offset = (size_t)((uintptr_t)g_fault_addr - (uintptr_t)g_shared_map);
+	size_t offset = (size_t)((intptr_t)g_fault_addr - (intptr_t)g_shared_map);
 	size_t size = MIN(modified_size, ((size_t)g_map_size - offset));
 
 	// Configure message.
@@ -116,6 +117,10 @@ static void dropAccess (size_t modified_size) {
 	msg.data.buf = g_fault_addr;
 
 	// Send mesage.
+	dsm_send_msg(g_sock_io, &msg);
+
+	// Send end of data message.
+	msg.type = DSM_MSG_WRT_END;
 	dsm_send_msg(g_sock_io, &msg);
 }
 
@@ -150,11 +155,11 @@ void dsm_sync_sigsegv (int signal, siginfo_t *info, void *ucontext) {
 	g_fault_addr = info->si_addr;
 
 	// Compute fault offset.
-	fault_offset = (uintptr_t)g_fault_addr - (uintptr_t)g_shared_map;
+	fault_offset = (intptr_t)g_fault_addr - (intptr_t)g_shared_map;
 
 	// Verify address is within shared page. Otherwise panic.
-	if ((uintptr_t)g_fault_addr < (uintptr_t)g_shared_map || 
-		(uintptr_t)g_fault_addr >= (uintptr_t)g_shared_map + g_map_size) {
+	if ((intptr_t)g_fault_addr < (intptr_t)g_shared_map || 
+		(intptr_t)g_fault_addr >= (intptr_t)g_shared_map + g_map_size) {
 		dsm_panicf("Segmentation Fault: %p", g_fault_addr);
 	}
 

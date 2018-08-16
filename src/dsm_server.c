@@ -261,8 +261,17 @@ static void handler_wrt_data (int fd, dsm_msg *mp) {
     // Otherwise: Forward data to all arbiters except the sender.
     send_all_msg(mp, fd);
 
-    // Set new state step.
-    g_opqueue->step = STEP_WAITING_SYNC_ACK;
+}
+
+// DSM_MSG_WRT_END: Acknowledge end of data transmission.
+static void handler_wrt_end (int fd, dsm_msg *mp) {
+	UNUSED(fd);
+
+	// Treat the end of transmission signal like the data message.
+	handler_wrt_data(fd, mp);
+
+	// Set the state to waiting for acknowledgement. 
+	g_opqueue->step = STEP_WAITING_SYNC_ACK;
 }
 
 // DSM_MSG_POST_SEM: Process is posting to a semaphore.
@@ -468,6 +477,7 @@ int main (int argc, const char *argv[]) {
     dsm_setMsgFunc(DSM_MSG_REQ_WRT, handler_req_wrt, g_fmap);
     dsm_setMsgFunc(DSM_MSG_HIT_BAR, handler_hit_bar, g_fmap);
     dsm_setMsgFunc(DSM_MSG_WRT_DATA, handler_wrt_data, g_fmap);
+	dsm_setMsgFunc(DSM_MSG_WRT_END, handler_wrt_end, g_fmap);
     dsm_setMsgFunc(DSM_MSG_POST_SEM, handler_post_sem, g_fmap);
     dsm_setMsgFunc(DSM_MSG_WAIT_SEM, handler_wait_sem, g_fmap);
     dsm_setMsgFunc(DSM_MSG_EXIT, handler_exit, g_fmap);

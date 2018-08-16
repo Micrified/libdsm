@@ -49,8 +49,8 @@ static dsm_hole *remove_hole (int id, int *exist_p, dsm_hole *holes) {
 */
 
 
-// Digs (creates) a hole. Returns positive ID on success, or -1 on error.
-int dsm_dig_hole (off_t offset, size_t size, dsm_hole **holes) {
+// Creates a hole. Returns positive ID on success, or -1 on error.
+int dsm_new_hole (off_t offset, size_t size, dsm_hole **holes) {
 	dsm_hole *hole;
 
 	// Return -1 if hole overlaps another hole.
@@ -94,8 +94,8 @@ void dsm_free_holes (dsm_hole *holes) {
 // Returns nonzero if given memory range is completely within a hole. 
 int dsm_in_hole (off_t offset, size_t size, dsm_hole *holes) {
 	dsm_hole *hole;
-	unsigned int start = offset, end = offset + size;
-	unsigned int hole_start, hole_end;
+	off_t start = offset, end = offset + size;
+	off_t hole_start, hole_end;
 
 	for (hole = holes; hole != NULL; hole = hole->next) {
 		hole_start = hole->offset;
@@ -108,6 +108,23 @@ int dsm_in_hole (off_t offset, size_t size, dsm_hole *holes) {
 	}
 
 	return 0;
+}
+
+// Returns a pointer to a hole given a hole identifier. Returns NULL on error.
+dsm_hole *dsm_get_hole (int id, dsm_hole *holes) {
+	
+	// Base case: No hole.
+	if (holes == NULL) {
+		return NULL;
+	}
+
+	// Base case: At hole.
+	if (holes->id == id) {
+		return holes;
+	}
+
+	// Recursive case: Search next hole.
+	return dsm_get_hole(id, holes->next);
 }
 
 // Returns nonzero if given memory range overlaps with a hole.
@@ -135,8 +152,8 @@ int dsm_overlaps_hole (off_t offset, size_t size, dsm_hole *holes) {
 	return (hole != NULL);
 }
 
-// Fills (removes) a hole. Returns nonzero on error.
-int dsm_fill_hole (int id, dsm_hole **holes) {
+// Removes a hole. Returns nonzero on error.
+int dsm_del_hole (int id, dsm_hole **holes) {
 	int exists = 0;
 
 	// Remove the hole, if it exists.

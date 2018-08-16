@@ -45,6 +45,25 @@ void dsm_post_sem (const char *sem_name);
 */
 void dsm_wait_sem (const char *sem_name);
 
+/*
+ * Creates a hole in the shared memory space. Returns a positive hole ID
+ * on success, and -1 on error. Memory within this space will not be
+ * synchronized until the hole is filled. Any access that overlaps with a 
+ * active (synchronized) memory space will result in the entire access being
+ * synchronized.
+ * - addr: The starting address of the hole (must be in shared memory map).
+ * - size: The size (in bytes) of the hole. Must be > 0.
+*/
+int dsm_dig_hole (void *addr, size_t size);
+
+/*
+ * Fills a hole in the shared memory space. Panics on error.
+ * Filling a hole results in the hole memory space being
+ * synchronized. The hole then no longer exists.
+ * - id: The hole ID returned from dsm_dig_hole.
+*/
+void dsm_fill_hole (int id);
+
 // Disconnects from DSM. Unmaps shared memory. Collects local process forks.
 void dsm_exit (void);
 

@@ -304,8 +304,22 @@ static void handler_wrt_data (int fd, dsm_msg *mp) {
         dsm_mprotect(g_shared_map, g_map_size, PROT_READ);
     }
 
-    // Send synchronization message.
-    send_task_msg(g_sock_server, DSM_MSG_GOT_DATA);
+}
+
+// DSM_MSG_WRT_END: End of data transmission.
+static void handler_wrt_end (int fd, dsm_msg *mp) {
+	UNUSED(mp);
+
+	// Verify state.
+	ASSERT_STATE(g_started == 1);
+
+	// If internal: Forward to server.
+	if (fd != g_sock_server) {
+		dsm_send_msg(g_sock_server, mp);
+	}
+
+	// Always send acknowledgment to server.
+	send_task_msg(g_sock_server, DSM_MSG_GOT_DATA);
 }
 
 // DSM_MSG_POST_SEM: Process posted to a named semaphore.
@@ -528,6 +542,7 @@ int main (int argc, const char *argv[]) {
     dsm_setMsgFunc(DSM_MSG_REQ_WRT, handler_req_wrt, g_fmap);
     dsm_setMsgFunc(DSM_MSG_HIT_BAR, handler_hit_bar, g_fmap);
     dsm_setMsgFunc(DSM_MSG_WRT_DATA, handler_wrt_data, g_fmap);
+	dsm_setMsgFunc(DSM_MSG_WRT_END, handler_wrt_end, g_fmap);
     dsm_setMsgFunc(DSM_MSG_POST_SEM, handler_post_sem, g_fmap);
     dsm_setMsgFunc(DSM_MSG_WAIT_SEM, handler_wait_sem, g_fmap);
     dsm_setMsgFunc(DSM_MSG_EXIT, handler_exit, g_fmap);

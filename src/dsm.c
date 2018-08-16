@@ -91,6 +91,31 @@ static void send_sem_msg (dsm_msg_t type, const char *sem_name) {
     dsm_send_msg(g_sock_io, &msg);
 }
 
+// Sends all data for a newly filled hole.
+static void send_hole_data (dsm_hole *hole) {
+	dsm_msg msg;
+
+	// Request write-authorization.
+	msg.type = DSM_MSG_REQ_WRT;
+	msg.proc.pid = getpid();
+	dsm_send_msg(g_sock_io, &msg);
+
+	// Receive write-authorization.
+	dsm_recv_msg(g_sock_io, &msg);
+	ASSERT_COND(msg.type == DSM_MSG_WRT_NOW && msg.proc.pid == getpid());
+
+	// Send data.
+	msg.type = DSM_MSG_WRT_DATA;
+	msg.data.offset = hole->offset;
+	msg.data.size = hole->size;
+	msg.data.buf = (void *)((intptr_t)g_shared_map + (intptr_t)hole->offset);
+	dsm_send_msg(g_sock_io, &msg);
+	
+	// Signal end of data stream.
+	msg.type = DSM_MSG_WRT_END;
+	dsm_send_msg(g_sock_io, &msg);
+}
+
 // Sends exit message to arbiter.
 static void send_exit (void) {
     dsm_msg msg = {.type = DSM_MSG_EXIT};
@@ -284,6 +309,73 @@ void dsm_post_sem (const char *sem_name) {
 void dsm_wait_sem (const char *sem_name) {
     send_sem_msg(DSM_MSG_WAIT_SEM, sem_name);
     recv_post_sem(sem_name);
+}
+
+
+/*
+ * Creates a hole in the shared memory space. Returns a positive hole ID
+ * on success, and faults on error. Memory within this space will not be
+ * synchronized until the hole is filled. Any access that overlaps with a 
+ * active (synchronized) memory space will result in the entire access being
+ * synchronized.
+ * - addr: The starting address of the hole (must be in shared memory map).
+ * - size: The size (in bytes) of the hole. Must be > 0.
+*/
+int dsm_dig_hole (void *addr, size_t size) {
+	intptr_t offset = (intptr_t)addr - (intptr_t)g_shared_map;
+	intptr_t ubound = (intptr_t)g_map_size;
+	intptr_t length = (intptr_t)size;
+	int id;
+
+	// Ensure size is reasonable.
+	if (size == 0 || size > (size_t)g_map_size) {
+		dsm_panicf("Bad hole size: (%zu == 0 || %zu > (%zu <- max))!",
+			size, size, g_map_size);
+	}
+
+	// Ensure hole range in shared memory space.
+	if (offset < 0 || (offset + length) > ubound) {
+		dsm_panicf("Bad hole range: [%p->%p) not in [%p->%p)!",
+			g_shared_map, (intptr_t)g_shared_map + (intptr_t)g_map_size, 
+			addr, (intptr_t)addr + (intptr_t)size);
+	}
+
+	// Ensure hole doesn't overlap with another hole.
+	if (dsm_overlaps_hole(offset, size, g_shm_holes) != 0) {
+		dsm_panicf("Hole with range: [%p->%p) overlaps existing hole!",
+			addr, (intptr_t)addr + (intptr_t)size);
+	}
+
+	// Otherwise dig a hole. 
+	if ((id = dsm_new_hole(offset, size, &g_shm_holes)) == -1) {
+		dsm_panicf("(%s:%d) Couldn't create hole!\n", __FILE__, __LINE__);
+	}
+
+	// Return hole ID.
+	return id;
+}
+
+/*
+ * Fills a hole in the shared memory space. Panics on error.
+ * Filling a hole results in the hole memory space being
+ * synchronized. The hole then no longer exists.
+ * - id: The hole ID returned from dsm_dig_hole.
+*/
+void dsm_fill_hole (int id) {
+	dsm_hole *hole;
+
+	// Ensure hole exists.
+	if ((hole = dsm_get_hole(id, g_shm_holes)) == NULL) {
+		dsm_panicf("Can't fill hole! No hole exists with ID %d!", id);
+	}
+
+	// Synchronize data across hole range.
+	send_hole_data(hole);
+
+	// Ensure hole was successfully removed.
+	if (dsm_del_hole(id, &g_shm_holes) != 0) {
+		dsm_panicf("Can't fill hole! Bad deletion of ID %d!", id);
+	}
 }
 
 // Disconnects from DSM. Unmaps shared memory. Collects local process forks.
