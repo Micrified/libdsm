@@ -457,6 +457,7 @@ void dsm_show_msg (dsm_msg *mp) {
 			for (int i = 0; i < MIN(8, mp->data.size); ++i) {
 				printf("0x%02x ", mp->data.buf[i]);
 			}
+			printf("\n");
 			break;
 		case DSM_MSG_WRT_END:
 			printf("Type: DSM_MSG_WRT_END\n");

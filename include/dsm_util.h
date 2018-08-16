@@ -31,6 +31,9 @@
 // Size of system memory page.
 #define DSM_PAGESIZE			sysconf(_SC_PAGESIZE)
 
+// System address width in bytes.
+#define SYS_ADDR_WIDTH			8
+
 // Loopback address.
 #define DSM_LOOPBACK_ADDR		"127.0.0.1"
 

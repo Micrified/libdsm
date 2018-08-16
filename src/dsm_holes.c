@@ -91,23 +91,27 @@ void dsm_free_holes (dsm_hole *holes) {
 }
 
 
-// Returns nonzero if given memory range is completely within a hole. 
-int dsm_in_hole (off_t offset, size_t size, dsm_hole *holes) {
+/* Returns pointer to a hole if the memory space resides inside one.
+ * Ext is added to the compared hole size. It allows accesses to the last
+ * byte of the hole to not count as outside the hole.
+*/
+dsm_hole *dsm_in_hole (off_t offset, size_t size, size_t ext, 
+	dsm_hole *holes) {
 	dsm_hole *hole;
 	off_t start = offset, end = offset + size;
 	off_t hole_start, hole_end;
 
 	for (hole = holes; hole != NULL; hole = hole->next) {
 		hole_start = hole->offset;
-		hole_end = hole_start + hole->size;
+		hole_end = hole_start + hole->size + ext;
 
 		// If start begins in that hole, ensure end is before hole end.
 		if (start >= hole_start && start < hole_end) {
-			return (end <= hole_end);
+			return ((end <= hole_end) ? hole : NULL);
 		}
 	}
 
-	return 0;
+	return NULL;
 }
 
 // Returns a pointer to a hole given a hole identifier. Returns NULL on error.

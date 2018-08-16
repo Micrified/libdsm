@@ -30,7 +30,7 @@
 
 // Session configuration structure.
 typedef struct dsm_cfg {
-	unsigned int lproc;     // Local number of processes.
+    unsigned int lproc;     // Local number of processes.
     unsigned int tproc;     // Total number of expected processes.
     const char *sid_name;   // Session identifier.
     const char *d_addr;     // Daemon address.

@@ -25,9 +25,6 @@
 // Length of the UD2 instruction for isa: x86-64.
 #define UD2_SIZE		2
 
-// Length of the largest addressable system type (64-bit).
-#define MAX_TYPE_SIZE	8
-
 
 /*
  *******************************************************************************
@@ -43,7 +40,7 @@ xed_state_t g_xed_machine_state;
 unsigned char g_inst_buf[UD2_SIZE];
 
 // Copy buffer.
-unsigned char g_mem_buf[MAX_TYPE_SIZE];
+unsigned char g_mem_buf[SYS_ADDR_WIDTH];
 
 // UD2 instruction opcodes for isa: x86-64.
 unsigned char g_ud2_opcodes[UD2_SIZE] = {0x0f, 0x0b};
@@ -53,6 +50,9 @@ void *g_fault_addr;
 
 // Boolean: Indicates if access should be synchronized.
 unsigned int g_skip_sync;
+
+// Hole last access was in. If NULL, access was not in a hole.
+dsm_hole *g_active_hole;
 
 
 /*
@@ -109,7 +109,7 @@ static void dropAccess (size_t modified_size) {
 
 	// Compute maximum allowed size (so not to go out of range).
 	size_t offset = (size_t)((intptr_t)g_fault_addr - (intptr_t)g_shared_map);
-	size_t size = MIN(modified_size, ((size_t)g_map_size - offset));
+	size_t size = MAX(MIN(modified_size, ((size_t)g_map_size - offset)), 1);
 
 	// Configure message.
 	msg.data.offset = offset;
@@ -163,16 +163,17 @@ void dsm_sync_sigsegv (int signal, siginfo_t *info, void *ucontext) {
 		dsm_panicf("Segmentation Fault: %p", g_fault_addr);
 	}
 
-	// Determine whether or not access must be requested.
-	g_skip_sync = dsm_in_hole(fault_offset, MAX_TYPE_SIZE, g_shm_holes);
+	// Determine whether access in hole or not.
+	g_active_hole = dsm_in_hole(fault_offset, SYS_ADDR_WIDTH,
+		SYS_ADDR_WIDTH, g_shm_holes);
 
 	// Request write access if the addressable range wasn't in a hole.
-	if (g_skip_sync == 0) {
+	if (g_active_hole == NULL) {
 		takeAccess();
 	}
 
 	// Make copy of memory before modification (do after access granted).
-	memcpy(g_mem_buf, g_fault_addr, MAX_TYPE_SIZE);
+	memcpy(g_mem_buf, g_fault_addr, SYS_ADDR_WIDTH);
 
 	// Get instruction length.
 	len = getInstLength(prgm_counter, &g_xed_machine_state);
@@ -214,10 +215,10 @@ void dsm_sync_sigill (int signal, siginfo_t *info, void *ucontext) {
 	dsm_mprotect(g_shared_map, g_map_size, PROT_READ);
 
 	// Compute the size of the modified memory.
-	size_t modified_size = dsm_memcmp(g_fault_addr, g_mem_buf, MAX_TYPE_SIZE);
-
+	size_t modified_size = dsm_memcmp(g_fault_addr, g_mem_buf, SYS_ADDR_WIDTH);
+	
 	// Release lock and send synchronization info if needed.
-	if (g_skip_sync == 0) {
+	if (g_active_hole == NULL) {
 		dropAccess(modified_size);
 	}
 

@@ -346,7 +346,7 @@ int dsm_dig_hole (void *addr, size_t size) {
 			addr, (intptr_t)addr + (intptr_t)size);
 	}
 
-	// Otherwise dig a hole. 
+	// Otherwise dig a hole.
 	if ((id = dsm_new_hole(offset, size, &g_shm_holes)) == -1) {
 		dsm_panicf("(%s:%d) Couldn't create hole!\n", __FILE__, __LINE__);
 	}
