@@ -1,4 +1,4 @@
-# DSM 
+# LIBDSM 
 
 This repository contains a DSM in the form of a drag and drop library. The abbreviation "DSM" stands for Distributed Shared Memory. A DSM system allows processes across different machines to share a logically identical memory space. This allows variables to be shared transparently.
 
@@ -7,7 +7,7 @@ The following programs compose the DSM library:
 2. A session server.
 3. An arbiter (local server).
 
-The system guarantees atomic write access to primitive types (anything up to quads) in the shared memory space, and does not require explicit sychronization or messaging. Simply writing to the shared memory map is sufficient. Networked semaphores provide access control to larger data structures, and barrier directives guarantee process synchronization.
+The system guarantees atomic write access to primitive types (anything up to quads) in the shared memory space, and does not require explicit sychronization or messaging. Simply writing to the shared memory map is sufficient. Networked semaphores provide access control to larger data structures, and barrier directives guarantee process synchronization. Finally, memory holes provide a means to perform bulk changes with minimal overhead.
 
 This system will not work with multi-threaded processes. Userland multithreading libraries will result in undefined results. Attempt this at your own risk.
 
@@ -34,13 +34,15 @@ All programs must be compiled with the following linked libraries (in order):
 `gcc <flags> -ldsm -lpthread -lrt -lxed`
 ---
 
+A template program is available in examples/template. 
+
 In order for the library to work, the session-daemon must be running. If you have invoked `make install`, it will be in `/usr/local/bin`. As long as that is in your PATH variable, you may start it with: `dsm_daemon`. 
 
 **See the examples folder for working programs.**
 
 ### Problems
 
-I've logged known problems in the issues tab at: https://github.com/Micrified/dsm.
+I've logged known problems in the issues tab at: https://github.com/Micrified/libdsm.
 
 
 ### Uninstallation
