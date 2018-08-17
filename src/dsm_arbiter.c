@@ -297,7 +297,7 @@ static void handler_wrt_data (int fd, dsm_msg *mp) {
 
         // Otherwise synchronize the shared memory.
         dsm_mprotect(g_shared_map, g_map_size, PROT_WRITE);
-        void *dest = (void *)((uintptr_t)g_shared_map + mp->data.offset);
+        void *dest = (void *)((intptr_t)g_shared_map + mp->data.offset);
         void *src = (void *)mp->data.buf;
 		len = MIN(MAX(len, map_end - (size_t)dest), 8);
         memcpy(dest, src, len);

@@ -179,14 +179,14 @@ void dsm_sync_sigsegv (int signal, siginfo_t *info, void *ucontext) {
 	len = getInstLength(prgm_counter, &g_xed_machine_state);
 
 	// Compute start of next instruction.
-	void *nextInst = (void *)((uintptr_t)prgm_counter + len);
+	void *nextInst = (void *)((intptr_t)prgm_counter + len);
 
 	// Copy out UD2_SIZE bytes for fault substitution.
 	memcpy(g_inst_buf, nextInst, UD2_SIZE);
 
 	// Assign full access permissions to program text page.
-	offset = (uintptr_t)nextInst % (uintptr_t)DSM_PAGESIZE;
-	void *pageStart = (void *)((uintptr_t)nextInst - offset);
+	offset = (intptr_t)nextInst % (intptr_t)DSM_PAGESIZE;
+	void *pageStart = (void *)((intptr_t)nextInst - offset);
 	dsm_mprotect(pageStart, DSM_PAGESIZE, PROT_READ|PROT_WRITE|PROT_EXEC);
 
 	// Copy in the UD2 instruction.

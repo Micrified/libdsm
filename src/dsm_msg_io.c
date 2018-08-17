@@ -83,7 +83,7 @@ void dsm_send_msg (int fd, dsm_msg *mp) {
 	if (next_size > 0) {
 		mp->data.size = next_size;
 		mp->data.offset += send_size;
-		mp->data.buf = (void *)((uintptr_t)mp->data.buf + (uintptr_t)send_size);
+		mp->data.buf = (void *)((intptr_t)mp->data.buf + (intptr_t)send_size);
 		dsm_send_msg(fd, mp);
 	}
 }
