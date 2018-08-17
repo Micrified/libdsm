@@ -16,7 +16,7 @@ This system will not work with multi-threaded processes. Userland multithreading
 The following specifications must be met to ensure proper operation:
 1. x86-64 only. Do not run on any other architecture.
 2. Linux only (oldest supported version unknown). Will check. 
-3. Intel XED disassembler library must be installed.
+3. Intel XED disassembler library must be installed ([Link](https://github.com/intelxed/xed)).
 4. Hardware sharing memory space must have the same memory model.
 
 ### Installation
