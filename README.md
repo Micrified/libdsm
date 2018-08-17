@@ -31,7 +31,9 @@ A makefile facilitates installation. The following instructions are of interest:
 All programs must be compiled with the following linked libraries (in order):
 
 ---
+
 `gcc <flags> -ldsm -lpthread -lrt -lxed`
+
 ---
 
 A template program is available in examples/template. 
