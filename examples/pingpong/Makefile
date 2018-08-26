@@ -7,15 +7,15 @@ LIBS=-ldsm -lpthread -lrt -lxed
 all: pingpong_busy_wait pingpong_semaphore
 
 pingpong_busy_wait: pingpong_busy_wait.c
-	${CC} ${CFLAGS} -o pingpong_busy_wait pingpong_busy_wait.c ${LIBS}
+	@${CC} ${CFLAGS} -o pingpong_busy_wait pingpong_busy_wait.c ${LIBS}
 
 pingpong_semaphore: pingpong_semaphore.c
-	${CC} ${CFLAGS} -o pingpong_semaphore pingpong_semaphore.c ${LIBS}
+	@${CC} ${CFLAGS} -o pingpong_semaphore pingpong_semaphore.c ${LIBS}
 
 
 # CLEAN RULES
 
 clean:
-	rm pingpong_busy_wait
-	rm pingpong_semaphore
+	@rm pingpong_busy_wait
+	@rm pingpong_semaphore
 

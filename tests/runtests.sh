@@ -16,4 +16,4 @@ dsm_daemon >> test.log &
 ./dsm_test_holes
 echo Done.
 make clean >> test.log
-[[ -z "$(jobs -p)" ]] || kill $(jobs -p)
+kill $(pgrep -f dsm_daemon)

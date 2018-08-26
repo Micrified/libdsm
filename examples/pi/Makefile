@@ -7,10 +7,10 @@ LIBS=-ldsm -lpthread -lrt -lxed
 all: dsm_pi
 
 dsm_pi: dsm_pi.c
-	${CC} ${CFLAGS} -o dsm_pi dsm_pi.c ${LIBS}
+	@${CC} ${CFLAGS} -o dsm_pi dsm_pi.c ${LIBS}
 
 # CLEAN RULES
 
 clean:
-	rm dsm_pi
+	@rm dsm_pi
 

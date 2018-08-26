@@ -7,11 +7,11 @@ LIBS=-ldsm -lpthread -lrt -lxed
 all: dsm_contrast
 
 dsm_contrast: dsm_contrast.c image.c
-	${CC} ${CFLAGS} -o dsm_contrast dsm_contrast.c image.c ${LIBS} -lm
+	@${CC} ${CFLAGS} -o dsm_contrast dsm_contrast.c image.c ${LIBS} -lm
 
 
 # CLEAN RULES
 
 clean:
-	rm dsm_contrast
+	@rm dsm_contrast
 

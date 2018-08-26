@@ -7,15 +7,15 @@ LIBS=-ldsm -lpthread -lrt -lxed
 all: dsm_primes seq_primes
 
 dsm_primes: dsm_primes.c
-	${CC} ${CFLAGS} -g -o dsm_primes dsm_primes.c ${LIBS} -lm
+	@${CC} ${CFLAGS} -g -o dsm_primes dsm_primes.c ${LIBS} -lm
 
 seq_primes: seq_primes.c
-	${CC} ${CFLAGS} -o seq_primes seq_primes.c -lm
+	@${CC} ${CFLAGS} -o seq_primes seq_primes.c -lm
 
 
 
 # CLEAN RULES
 
 clean:
-	rm dsm_primes
-	rm seq_primes
+	@rm dsm_primes
+	@rm seq_primes

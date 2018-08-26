@@ -25,6 +25,9 @@
 // Server socket.
 int sock;
 
+// Buffer.
+unsigned char data[6] = {'H', 'e', 'l', 'l', 'o', '\0'};
+
 // Contains the last message received by recv_message.
 dsm_msg recv_msg;
 
@@ -35,6 +38,11 @@ int recv_message (dsm_msg *exp_msg) {
 	// Receive message.
 	dsm_recvall(sock, recv_buf, DSM_MSG_SIZE);
 	dsm_unpack_msg(&recv_msg, recv_buf);
+
+	// If message is of type: DSM_MSG_WRT_DATA -> Recv data too.
+	if (recv_msg.type == DSM_MSG_WRT_DATA) {
+		dsm_recvall(sock, data, recv_msg.data.size);
+	}
 
 	// Do not compare, if given message is NULL.
 	if (exp_msg == NULL) return -1;
@@ -50,6 +58,10 @@ void send_message (dsm_msg *mp) {
 	unsigned char buf[DSM_MSG_SIZE];
 	dsm_pack_msg(mp, buf);
 	dsm_sendall(sock, buf, DSM_MSG_SIZE);
+
+	if (mp->type == DSM_MSG_WRT_DATA) {
+		dsm_sendall(sock, mp->data.buf, 6);
+	}
 }
 
 int main (int argc, const char *argv[]) {
@@ -131,9 +143,22 @@ int main (int argc, const char *argv[]) {
 			assert((rank % 2) == 1);
 			memset(&msg, 0, sizeof(dsm_msg));
 			msg.type = DSM_MSG_WRT_DATA;
+			msg.data.buf = data;
+			msg.data.offset = 0;
+			msg.data.size = 6;
 			send_message(&msg);
+
+			// Signal end of data.
+			memset(&msg, 0, sizeof(dsm_msg));
+			msg.type = DSM_MSG_WRT_END;
+			send_message(&msg);
+			
 		} else {
 			assert(recv_msg.type == DSM_MSG_WRT_DATA);
+
+			// Receive end of data message.
+			recv_message(NULL);
+			assert(recv_msg.type == DSM_MSG_WRT_END);
 		}
 
 		// Send acknowledgment.
