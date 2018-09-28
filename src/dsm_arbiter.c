@@ -116,20 +116,6 @@ static void map_gid_all (int fd, dsm_proc *proc_p) {
     dsm_send_msg(fd, &msg);
 }
 
-// Sets stopped bit on process. Signals if not blocked, stopped, or queued.
-static void map_stp_all (int fd, dsm_proc *proc_p) {
-    UNUSED(fd);
-
-    // If not stopped, blocked, or queued, then signal.
-    if (proc_p->flags.is_stopped == 0 && proc_p->flags.is_blocked == 0
-        && proc_p->flags.is_queued == 0) {
-        signalProcess(proc_p->pid, SIGTSTP);
-    }
-
-    // Set stopped bit.
-    proc_p->flags.is_stopped = 1;
-}
-
 // Unsets blocked bit on process. Sends release message.
 static void map_rel_bar (int fd, dsm_proc *proc_p) {
     UNUSED(fd);

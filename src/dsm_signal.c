@@ -12,58 +12,50 @@
  *******************************************************************************
 */
 
+// Installs signal handler via a struct sigaction pointer.
+void dsm_sigaction_restore (int signal, struct sigaction *sa) {
+	if (sigaction(signal, sa, NULL) == -1) {
+		dsm_panic("Could not restore signal!");
+	}
+}
 
 // Ignores specified signal (Except SIGKILL and SIGSTOP). 
-void dsm_sigignore (int signal) {
+void dsm_sigignore (int signal, struct sigaction *old) {
 	struct sigaction sa = {0};
 
 	// Set the ignore flag.
 	sa.sa_handler = SIG_IGN;
 
 	// Install action.
-	if (sigaction(signal, &sa, NULL) == -1) {
+	if (sigaction(signal, &sa, old) == -1) {
 		dsm_panic("Could not ignore signal!");
 	}
 }
 
-// Restores default behavior for specified signal.
-void dsm_sigdefault (int signal) {
+// Restores default behavior for specified signal. Saves old sigaction in old.
+void dsm_sigdefault (int signal, struct sigaction *old) {
 	struct sigaction sa = {0};
 
 	// Set the default flag.
 	sa.sa_handler = SIG_DFL;
 
 	// Install action.
-	if (sigaction(signal, &sa, NULL) == -1) {
-		dsm_panic("Could not restore signal!");
+	if (sigaction(signal, &sa, old) == -1) {
+		dsm_panic("Could not set default signal!");
 	}
 }
 
 // Installs a handler for the given signal.
-void dsm_sigaction (int signal, void (*f)(int, siginfo_t *, void *)) {
-	struct sigaction sa ={0};
+void dsm_sigaction (int signal, void (*f)(int, siginfo_t *, void *),
+	struct sigaction *old) {
+	struct sigaction sa = {0};
 
 	sa.sa_flags = SA_SIGINFO;		// Configure to receive additional info.
 	sigemptyset(&sa.sa_mask);		// Zero mask to block no signals.
 	sa.sa_sigaction = f;			// Set the signal handler.
 
 	// Install sigaction and verify.
-	if (sigaction(signal, &sa, NULL) == -1) {
+	if (sigaction(signal, &sa, old) == -1) {
 		dsm_panic("Couldn't install handler!");
 	}
-}
-
-// Sends signal to processes in group except caller. Signal must be ignorable.
-void dsm_killpg (int signal) {
-
-	// Ignore signal for calling process.
-	dsm_sigignore(signal);
-
-	// Send signal to process group.
-	if (killpg(0, signal) == -1) {
-		dsm_panic("Couldn't signal process group!");
-	}
-
-	// Restore signal for calling process.
-	dsm_sigdefault(signal);
 }

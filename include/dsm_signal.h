@@ -11,17 +11,15 @@
 */
 
 
-// Ignores specified signal (Except SIGKILL and SIGSTOP). 
-void dsm_sigignore (int signal);
+// Installs signal handler via a struct sigaction pointer.
+void dsm_sigaction_restore (int signal, struct sigaction *sa);
 
-// Restores default behavior for specified signal.
-void dsm_sigdefault (int signal);
+// Restores default behavior for specified signal. Saves old sigaction in old.
+void dsm_sigdefault (int signal, struct sigaction *old);
 
 // Installs a handler for the given signal.
-void dsm_sigaction (int signal, void (*f)(int, siginfo_t *, void *));
-
-// Sends signal to processes in group except caller. Signal must be ignorable.
-void dsm_killpg (int signal);
+void dsm_sigaction (int signal, void (*f)(int, siginfo_t *, void *),
+	struct sigaction *old);
 
 
 #endif

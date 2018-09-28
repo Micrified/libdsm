@@ -14,6 +14,7 @@ dsm_daemon >> test.log &
 ./dsm_test_ptab
 ./dsm_test_stab
 ./dsm_test_holes
+./dsm_test_signals
 echo Done.
 make clean >> test.log
 kill $(pgrep -f dsm_daemon)

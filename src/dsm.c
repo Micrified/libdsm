@@ -58,6 +58,13 @@ static int g_gid = -1;
 // Communication socket.
 int g_sock_io = -1;
 
+/* Saved signal-handlers (to be restored after).
+ * 0 - SIGSEGV
+ * 1 - SIGILL
+ * 2 - SIGTSTP
+*/
+struct sigaction g_old_actions[3];
+
 
 /*
  *******************************************************************************
@@ -244,9 +251,12 @@ void *dsm_init2 (dsm_cfg *cfg) {
     // Initialize decoder.
     dsm_sync_init();
 
-    // Install signal handlers.
-    dsm_sigaction(SIGSEGV, dsm_sync_sigsegv);
-    dsm_sigaction(SIGILL, dsm_sync_sigill);
+    // Install signal handlers (save old ones).
+    dsm_sigaction(SIGSEGV, dsm_sync_sigsegv, g_old_actions);
+    dsm_sigaction(SIGILL, dsm_sync_sigill, g_old_actions + 1);
+
+	// Restore default behavior for SIGTSTP during session.
+	dsm_sigdefault(SIGTSTP, g_old_actions + 2);
 
     // Protect shared page.
     dsm_mprotect(g_shared_map, g_map_size, PROT_READ);
@@ -381,9 +391,10 @@ void dsm_fill_hole (int id) {
 // Disconnects from DSM. Unmaps shared memory. Collects local process forks.
 void dsm_exit (void) {
 
-	// Reset signal handlers.
-    dsm_sigdefault(SIGSEGV);
-    dsm_sigdefault(SIGILL);
+	// Restore original signal handlers.
+    dsm_sigaction_restore(SIGSEGV, g_old_actions);
+    dsm_sigaction_restore(SIGILL, g_old_actions + 1);
+	dsm_sigaction_restore(SIGTSTP, g_old_actions + 2);
 
     // Verify: Initializer has been called.
     ASSERT_STATE(g_sock_io != -1 && g_shared_map != NULL);

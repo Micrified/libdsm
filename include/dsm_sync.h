@@ -24,6 +24,13 @@ extern dsm_hole *g_shm_holes;
 // Communication socket.
 extern int g_sock_io;
 
+/* Saved signal-handlers (to be restored after).
+ * 0 - SIGSEGV
+ * 1 - SIGILL
+ * 2 - SIGTSTP
+*/
+extern struct sigaction g_old_actions[3];
+
 
 /*
  *******************************************************************************

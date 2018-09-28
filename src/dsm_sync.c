@@ -83,9 +83,6 @@ static xed_uint_t getInstLength (void *addr, xed_state_t *decoderState) {
 // Prepares to write: Messages the arbiter, waits for an acknowledgement.
 static void takeAccess (void) {
 
-	// Temporarily ignore SIGTSTP.
-	dsm_sigignore(SIGTSTP);
-
 	// Configure message.
 	dsm_msg msg = {.type = DSM_MSG_REQ_WRT};
 	msg.proc.pid = getpid();
@@ -103,9 +100,6 @@ static void takeAccess (void) {
 // Releases access: Messages the arbiter, then suspends itself until continued.
 static void dropAccess (size_t modified_size) {
 	dsm_msg msg = {.type = DSM_MSG_WRT_DATA};
-
-	// Reset default behavior for SIGTSTP.
-	dsm_sigdefault(SIGTSTP);
 
 	// Compute maximum allowed size (so not to go out of range).
 	size_t offset = (size_t)((intptr_t)g_fault_addr - (intptr_t)g_shared_map);
